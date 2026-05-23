@@ -1,6 +1,6 @@
 import type { PoseKeypoint17, KeypointName, PostureAngleMetrics } from '../../types';
 import { getKeypointByName } from '../pose/normalizeKeypoints';
-import { calculateAngle, midpoint, type Point } from '../../lib/math';
+import type { Point } from '../../lib/math';
 
 export function getPoint(keypoints: PoseKeypoint17[], name: KeypointName): Point | null {
   const kp = getKeypointByName(keypoints, name);
@@ -10,59 +10,59 @@ export function getPoint(keypoints: PoseKeypoint17[], name: KeypointName): Point
   return { x: kp.x, y: kp.y };
 }
 
-export function calculateForwardHeadAngle(keypoints: PoseKeypoint17[]): number {
-  const ear = getPoint(keypoints, 'leftEar');
-  const shoulder = getPoint(keypoints, 'leftShoulder');
-  const nose = getPoint(keypoints, 'nose');
+function averagePoint(left: Point | null, right: Point | null): Point | null {
+  if (left && right) {
+    return {
+      x: (left.x + right.x) / 2,
+      y: (left.y + right.y) / 2,
+    };
+  }
 
-  if (!ear || !shoulder || !nose) {
-    const rightEar = getPoint(keypoints, 'rightEar');
-    const rightShoulder = getPoint(keypoints, 'rightShoulder');
-    if (rightEar && rightShoulder && nose) {
-      const neck = midpoint(shoulder || rightShoulder, nose);
-      return calculateAngle(rightEar, rightShoulder, neck);
-    }
+  return left ?? right;
+}
+
+function verticalDeviationAngle(top: Point, bottom: Point): number {
+  const dx = top.x - bottom.x;
+  const dy = Math.abs(top.y - bottom.y);
+
+  if (dy === 0) {
+    return 90;
+  }
+
+  return Math.abs(Math.atan2(dx, dy) * (180 / Math.PI));
+}
+
+export function calculateForwardHeadAngle(keypoints: PoseKeypoint17[]): number {
+  const ear = averagePoint(getPoint(keypoints, 'leftEar'), getPoint(keypoints, 'rightEar'));
+  const shoulder = averagePoint(getPoint(keypoints, 'leftShoulder'), getPoint(keypoints, 'rightShoulder'));
+
+  if (!ear || !shoulder) {
     return 0;
   }
 
-  const neck = midpoint(shoulder, nose);
-  return calculateAngle(ear, shoulder, neck);
+  return verticalDeviationAngle(ear, shoulder);
 }
 
 export function calculateRoundedShoulderAngle(keypoints: PoseKeypoint17[]): number {
-  const shoulder = getPoint(keypoints, 'leftShoulder');
-  const elbow = getPoint(keypoints, 'leftElbow');
-  const hip = getPoint(keypoints, 'leftHip');
+  const shoulder = averagePoint(getPoint(keypoints, 'leftShoulder'), getPoint(keypoints, 'rightShoulder'));
+  const hip = averagePoint(getPoint(keypoints, 'leftHip'), getPoint(keypoints, 'rightHip'));
 
-  if (!shoulder || !elbow || !hip) {
-    const rightShoulder = getPoint(keypoints, 'rightShoulder');
-    const rightElbow = getPoint(keypoints, 'rightElbow');
-    const rightHip = getPoint(keypoints, 'rightHip');
-    if (rightShoulder && rightElbow && rightHip) {
-      return calculateAngle(rightShoulder, rightElbow, rightHip);
-    }
+  if (!shoulder || !hip) {
     return 0;
   }
 
-  return calculateAngle(shoulder, elbow, hip);
+  return verticalDeviationAngle(shoulder, hip);
 }
 
 export function calculateAnteriorPelvicTiltAngle(keypoints: PoseKeypoint17[]): number {
-  const hip = getPoint(keypoints, 'leftHip');
-  const knee = getPoint(keypoints, 'leftKnee');
-  const ankle = getPoint(keypoints, 'leftAnkle');
+  const hip = averagePoint(getPoint(keypoints, 'leftHip'), getPoint(keypoints, 'rightHip'));
+  const ankle = averagePoint(getPoint(keypoints, 'leftAnkle'), getPoint(keypoints, 'rightAnkle'));
 
-  if (!hip || !knee || !ankle) {
-    const rightHip = getPoint(keypoints, 'rightHip');
-    const rightKnee = getPoint(keypoints, 'rightKnee');
-    const rightAnkle = getPoint(keypoints, 'rightAnkle');
-    if (rightHip && rightKnee && rightAnkle) {
-      return calculateAngle(rightHip, rightKnee, rightAnkle);
-    }
+  if (!hip || !ankle) {
     return 0;
   }
 
-  return calculateAngle(hip, knee, ankle);
+  return verticalDeviationAngle(hip, ankle);
 }
 
 export function calculateAllPostureAngles(keypoints: PoseKeypoint17[]): PostureAngleMetrics {

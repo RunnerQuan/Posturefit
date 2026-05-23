@@ -40,9 +40,9 @@ function classifyRoundedShoulderSeverity(angle: number, thresholds: PostureThres
 }
 
 function classifyAnteriorPelvicTiltSeverity(angle: number, thresholds: PostureThresholds): PostureSeverity {
-  const { normalMin, normalMax, mild, moderate } = thresholds.anteriorPelvicTilt;
+  const { normalMax, mild, moderate } = thresholds.anteriorPelvicTilt;
   
-  if (angle >= normalMin && angle <= normalMax) {
+  if (angle <= normalMax) {
     return 'normal';
   }
   if (angle < mild) {

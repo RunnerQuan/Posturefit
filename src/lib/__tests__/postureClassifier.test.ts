@@ -74,9 +74,9 @@ describe('classifyPostureIssue', () => {
       expect(result.severity).toBe('severe');
     });
 
-    it('should handle low anterior pelvic tilt angle', () => {
+    it('should classify low anterior pelvic tilt angle as normal', () => {
       const result = classifyPostureIssue('anteriorPelvicTilt', 2, DEFAULT_THRESHOLDS);
-      expect(result.severity).toBe('mild');
+      expect(result.severity).toBe('normal');
     });
   });
 });
