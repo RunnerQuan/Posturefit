@@ -2,9 +2,32 @@ import { useState, useCallback, useEffect } from 'react';
 import { CameraCapture } from './features/camera';
 import { usePoseDetection } from './features/pose';
 import { SkeletonOverlay, analyzePose } from './features/analysis';
-import type { CaptureMode, PostureAnalysisResult, PostureSessionStep } from './types';
+import { setupDiagnosticConsole } from './features/pose/tensorflowCleanup';
+import type { CaptureMode, PostureAnalysisResult, PostureIssueType, PostureSessionStep } from './types';
+
+const METRIC_LABELS: Record<PostureIssueType, string> = {
+  forwardHead: '头前伸',
+  roundedShoulder: '圆肩',
+  anteriorPelvicTilt: '骨盆前倾',
+};
+
+function getMetricValue(result: PostureAnalysisResult, issueType: PostureIssueType): number {
+  switch (issueType) {
+    case 'forwardHead':
+      return result.metrics.forwardHeadAngle;
+    case 'roundedShoulder':
+      return result.metrics.roundedShoulderAngle;
+    case 'anteriorPelvicTilt':
+      return result.metrics.anteriorTiltAngle;
+  }
+}
 
 function App() {
+  // 初始化诊断工具
+  useEffect(() => {
+    setupDiagnosticConsole();
+  }, []);
+
   const [currentStep, setCurrentStep] = useState<PostureSessionStep>('capture');
   const [captureMode, setCaptureMode] = useState<CaptureMode>('fullBody');
   const [imageUrl, setImageUrl] = useState<string>('');
@@ -15,11 +38,13 @@ function App() {
   const { detectPoseFromImage, isModelLoading } = usePoseDetection();
 
   const startAnalysisForImage = useCallback((dataUrl: string) => {
+    console.log('[App] startAnalysisForImage called, URL length:', dataUrl.length);
     setImageUrl(dataUrl);
     setAnalysisResult(null);
     setError(null);
     setIsAnalyzing(false);
     setCurrentStep('analysis');
+    console.log('[App] Image set, switching to analysis step');
   }, []);
 
   const handleCapture = useCallback((dataUrl: string) => {
@@ -31,27 +56,59 @@ function App() {
   }, [startAnalysisForImage]);
 
   const handleAnalyze = useCallback(async () => {
-    if (!imageUrl) return;
+    console.log('[App] handleAnalyze called, imageUrl:', imageUrl?.substring(0, 50) + '...');
+    if (!imageUrl) {
+      console.warn('[App] No imageUrl provided');
+      return;
+    }
 
     setIsAnalyzing(true);
     setError(null);
+    console.log('[App] Starting analysis...');
 
     try {
-      const keypoints = await detectPoseFromImage(imageUrl);
-      const result = analyzePose(keypoints);
+      const startTime = performance.now();
+      console.log('[App] Detecting pose...');
+      const keypoints = await detectPoseFromImage(imageUrl, captureMode);
+      const detectTime = performance.now() - startTime;
+      console.log('[App] Pose detection completed in', detectTime.toFixed(2), 'ms');
+      
+      console.log('[App] Analyzing pose...');
+      const result = analyzePose(keypoints, { captureMode });
+      console.log('[App] ✓ Analysis complete:', result);
       setAnalysisResult(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '分析失败');
+      const errorMsg = err instanceof Error ? err.message : '分析失败';
+      console.error('[App] Analysis error:', errorMsg);
+      setError(errorMsg);
     } finally {
       setIsAnalyzing(false);
+      console.log('[App] Analysis finished');
     }
-  }, [imageUrl, detectPoseFromImage]);
+  }, [imageUrl, captureMode, detectPoseFromImage]);
 
   useEffect(() => {
-    if (currentStep === 'analysis' && imageUrl && !analysisResult && !isAnalyzing) {
+    console.log('[App] useEffect triggered:', {
+      currentStep,
+      hasImageUrl: !!imageUrl,
+      hasAnalysisResult: !!analysisResult,
+      isAnalyzing,
+      isModelLoading
+    });
+    
+    if (currentStep === 'analysis' && imageUrl && !analysisResult && !isAnalyzing && !error) {
+      console.log('[App] Conditions met for analysis, calling handleAnalyze');
       handleAnalyze();
+    } else if (currentStep === 'analysis') {
+      console.log('[App] Analysis conditions not met. Reasons:', {
+        wrongStep: currentStep !== 'analysis',
+        noImage: !imageUrl,
+        hasResult: !!analysisResult,
+        isStillAnalyzing: isAnalyzing,
+        hasError: !!error
+      });
     }
-  }, [currentStep, imageUrl, analysisResult, isAnalyzing, handleAnalyze]);
+  }, [currentStep, imageUrl, analysisResult, isAnalyzing, error, handleAnalyze]);
 
   const handleRetry = () => {
     setImageUrl('');
@@ -122,25 +179,15 @@ function App() {
                 <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">分析结果</h3>
                   
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div className="text-center p-4 bg-gray-50 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {analysisResult.metrics.forwardHeadAngle.toFixed(1)}°
+                  <div className="grid gap-4 mb-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {analysisResult.supportedIssueTypes.map((issueType) => (
+                      <div key={issueType} className="text-center p-4 bg-gray-50 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {getMetricValue(analysisResult, issueType).toFixed(1)}°
+                        </div>
+                        <div className="text-sm text-gray-500">{METRIC_LABELS[issueType]}</div>
                       </div>
-                      <div className="text-sm text-gray-500">头前伸</div>
-                    </div>
-                    <div className="text-center p-4 bg-gray-50 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {analysisResult.metrics.roundedShoulderAngle.toFixed(1)}°
-                      </div>
-                      <div className="text-sm text-gray-500">圆肩</div>
-                    </div>
-                    <div className="text-center p-4 bg-gray-50 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {analysisResult.metrics.anteriorTiltAngle.toFixed(1)}°
-                      </div>
-                      <div className="text-sm text-gray-500">骨盆前倾</div>
-                    </div>
+                    ))}
                   </div>
 
                   <div className="mb-6">

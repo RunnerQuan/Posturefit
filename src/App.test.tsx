@@ -6,10 +6,21 @@ import { usePoseDetection } from './features/pose';
 import type { UsePoseDetectionResult } from './features/pose';
 
 vi.mock('./features/camera', () => ({
-  CameraCapture: ({ onUploadImage }: { onUploadImage: (imageDataUrl: string) => void }) => (
-    <button type="button" onClick={() => onUploadImage(`data:image/${Date.now()}`)}>
-      mock upload
-    </button>
+  CameraCapture: ({
+    onUploadImage,
+    onModeChange,
+  }: {
+    onUploadImage: (imageDataUrl: string) => void;
+    onModeChange: (mode: string) => void;
+  }) => (
+    <>
+      <button type="button" onClick={() => onModeChange('closeUp')}>
+        特写
+      </button>
+      <button type="button" onClick={() => onUploadImage(`data:image/${Date.now()}`)}>
+        mock upload
+      </button>
+    </>
   ),
 }));
 
@@ -80,7 +91,61 @@ describe('App analysis flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'mock upload' }));
 
     await waitFor(() => expect(detectPoseFromImage).toHaveBeenCalledTimes(2));
+    expect(detectPoseFromImage).toHaveBeenLastCalledWith(expect.any(String), 'fullBody');
     expect(screen.queryByText('分析结果')).not.toBeInTheDocument();
     expect(screen.getByText('正在分析体态...')).toBeInTheDocument();
+  });
+
+  it('shows a full-body guidance error when fullBody validation fails', async () => {
+    const detectPoseFromImage = vi
+      .fn<UsePoseDetectionResult['detectPoseFromImage']>()
+      .mockRejectedValue(new Error('请上传完整全身照片，确保头部、肩部、髋部、膝盖和脚踝都在画面内'));
+
+    mockUsePoseDetection.mockReturnValue({
+      isModelLoading: false,
+      isDetecting: false,
+      error: null,
+      detectPoseFromImage,
+      detectPoseFromElement: vi.fn(),
+      modelType: 'SinglePose.Lightning',
+      setModelType: vi.fn(),
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'mock upload' }));
+
+    expect(await screen.findByText('请上传完整全身照片，确保头部、肩部、髋部、膝盖和脚踝都在画面内')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重新拍摄' })).toBeInTheDocument();
+  });
+
+  it('passes closeUp mode through analysis and hides unsupported metrics', async () => {
+    const closeUpPose = pose.map(keypoint =>
+      ['leftHip', 'rightHip', 'leftKnee', 'rightKnee', 'leftAnkle', 'rightAnkle'].includes(keypoint.name)
+        ? { ...keypoint, score: 0 }
+        : keypoint
+    );
+    const detectPoseFromImage = vi
+      .fn<UsePoseDetectionResult['detectPoseFromImage']>()
+      .mockResolvedValue(closeUpPose);
+
+    mockUsePoseDetection.mockReturnValue({
+      isModelLoading: false,
+      isDetecting: false,
+      error: null,
+      detectPoseFromImage,
+      detectPoseFromElement: vi.fn(),
+      modelType: 'SinglePose.Lightning',
+      setModelType: vi.fn(),
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: '特写' }));
+    fireEvent.click(screen.getByRole('button', { name: 'mock upload' }));
+
+    await screen.findByText('分析结果');
+    expect(detectPoseFromImage).toHaveBeenCalledWith(expect.any(String), 'closeUp');
+    expect(screen.getByText('头前伸')).toBeInTheDocument();
+    expect(screen.queryByText('圆肩')).not.toBeInTheDocument();
+    expect(screen.queryByText('骨盆前倾')).not.toBeInTheDocument();
   });
 });

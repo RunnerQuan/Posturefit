@@ -50,9 +50,11 @@ export type PostureIssue = {
 };
 
 export type PostureAnalysisResult = {
+  captureMode: CaptureMode;
   keypoints: PoseKeypoint17[];
   metrics: PostureAngleMetrics;
   issues: PostureIssue[];
+  supportedIssueTypes: PostureIssueType[];
   primaryIssue: PostureIssueType | null;
   score?: number;
   analyzedAt: string;

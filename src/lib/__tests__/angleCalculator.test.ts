@@ -45,4 +45,19 @@ describe('calculateAllPostureAngles', () => {
     expect(result.primaryIssue).toBeNull();
     expect(result.issues.map(issue => issue.severity)).toEqual(['normal', 'normal', 'normal']);
   });
+
+  it('only includes supported issues for close-up mode', () => {
+    const result = analyzePose(uprightSideViewPose(), { captureMode: 'closeUp' });
+
+    expect(result.captureMode).toBe('closeUp');
+    expect(result.supportedIssueTypes).toEqual(['forwardHead']);
+    expect(result.issues.map(issue => issue.type)).toEqual(['forwardHead']);
+  });
+
+  it('hides pelvic tilt for half-body mode', () => {
+    const result = analyzePose(uprightSideViewPose(), { captureMode: 'halfBody' });
+
+    expect(result.supportedIssueTypes).toEqual(['forwardHead', 'roundedShoulder']);
+    expect(result.issues.map(issue => issue.type)).toEqual(['forwardHead', 'roundedShoulder']);
+  });
 });

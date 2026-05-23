@@ -1,4 +1,4 @@
-import type { PoseKeypoint17, KeypointName } from '../../types';
+import type { CaptureMode, PoseKeypoint17, KeypointName } from '../../types';
 
 const MOVENET_TO_NORMALIZED: Record<number, KeypointName> = {
   0: 'nose',
@@ -109,6 +109,67 @@ export function flipKeypointsHorizontal(keypoints: PoseKeypoint17[], imageWidth:
 export function areKeypointsValid(keypoints: PoseKeypoint17[], minScore: number = 0.3): boolean {
   const validCount = keypoints.filter(k => k.score >= minScore).length;
   return validCount >= 10;
+}
+
+export type KeypointValidationResult = {
+  isValid: boolean;
+  message?: string;
+};
+
+const MODE_VALIDATION_MESSAGES: Record<CaptureMode, string> = {
+  fullBody: '请上传完整全身照片，确保头部、肩部、髋部、膝盖和脚踝都在画面内',
+  halfBody: '请上传清晰半身照片，确保头部、肩部和上半身主体都在画面内',
+  closeUp: '请上传清晰特写照片，确保头颈和双肩都在画面内',
+  sitting: '请上传清晰坐姿照片，确保头部、肩部和上半身主体都在画面内',
+};
+
+const REQUIRED_KEYPOINT_GROUPS: Record<CaptureMode, KeypointName[][]> = {
+  fullBody: [
+    ['nose', 'leftEar', 'rightEar'],
+    ['leftShoulder', 'rightShoulder'],
+    ['leftHip', 'rightHip'],
+    ['leftKnee', 'rightKnee'],
+    ['leftAnkle', 'rightAnkle'],
+  ],
+  halfBody: [
+    ['nose', 'leftEar', 'rightEar'],
+    ['leftShoulder', 'rightShoulder'],
+    ['leftHip', 'rightHip'],
+  ],
+  closeUp: [
+    ['leftEar', 'rightEar'],
+    ['leftShoulder', 'rightShoulder'],
+  ],
+  sitting: [
+    ['nose', 'leftEar', 'rightEar'],
+    ['leftShoulder', 'rightShoulder'],
+    ['leftHip', 'rightHip'],
+  ],
+};
+
+function hasVisibleKeypoint(keypoints: PoseKeypoint17[], names: KeypointName[], minScore: number): boolean {
+  return names.some(name => {
+    const keypoint = getKeypointByName(keypoints, name);
+    return keypoint !== undefined && keypoint.score >= minScore;
+  });
+}
+
+export function validateKeypointsForMode(
+  keypoints: PoseKeypoint17[],
+  captureMode: CaptureMode,
+  minScore: number = 0.3
+): KeypointValidationResult {
+  const groups = REQUIRED_KEYPOINT_GROUPS[captureMode];
+  const hasRequiredGroups = groups.every(group => hasVisibleKeypoint(keypoints, group, minScore));
+
+  if (!hasRequiredGroups) {
+    return {
+      isValid: false,
+      message: MODE_VALIDATION_MESSAGES[captureMode],
+    };
+  }
+
+  return { isValid: true };
 }
 
 export const SKELETON_CONNECTIONS: [KeypointName, KeypointName][] = [
