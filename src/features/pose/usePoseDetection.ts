@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { createPoseDetector, detectPose, disposeDetector, type MoveNetModelType } from './poseDetector';
+import { createPoseDetector, detectPose, disposeDetector, isDetectorReady, type MoveNetModelType } from './poseDetector';
 import { normalizeMoveNetKeypoints, areKeypointsValid } from './normalizeKeypoints';
 import type { PoseKeypoint17 } from '../../types';
+
+const POSE_OPERATION_TIMEOUT_MS = 20_000;
+const POSE_OPERATION_TIMEOUT_MESSAGE = '模型加载或姿态检测超时，请重新拍摄或刷新页面后重试';
 
 export type UsePoseDetectionResult = {
   isModelLoading: boolean;
@@ -12,6 +15,18 @@ export type UsePoseDetectionResult = {
   modelType: MoveNetModelType;
   setModelType: (type: MoveNetModelType) => void;
 };
+
+function withTimeout<T>(operation: Promise<T>, timeoutMs: number = POSE_OPERATION_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(POSE_OPERATION_TIMEOUT_MESSAGE));
+    }, timeoutMs);
+
+    operation
+      .then(resolve, reject)
+      .finally(() => window.clearTimeout(timeoutId));
+  });
+}
 
 export function usePoseDetection(
   autoInit: boolean = true,
@@ -25,8 +40,13 @@ export function usePoseDetection(
   const initPromise = useRef<Promise<void> | null>(null);
 
   const initializeModel = useCallback(async () => {
-    if (isInitialized.current) {
+    if (isInitialized.current && isDetectorReady()) {
       return;
+    }
+
+    if (isInitialized.current && !isDetectorReady()) {
+      isInitialized.current = false;
+      initPromise.current = null;
     }
 
     if (initPromise.current) {
@@ -38,7 +58,7 @@ export function usePoseDetection(
 
     initPromise.current = (async () => {
       try {
-        await createPoseDetector({ modelType: currentModelType });
+        await withTimeout(createPoseDetector({ modelType: currentModelType }));
         isInitialized.current = true;
       } catch (err) {
         setError(err instanceof Error ? err.message : '模型初始化失败');
@@ -63,13 +83,15 @@ export function usePoseDetection(
       const img = new Image();
       img.crossOrigin = 'anonymous';
       
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('图片加载失败'));
-        img.src = imageUrl;
-      });
+      await withTimeout(
+        new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('图片加载失败'));
+          img.src = imageUrl;
+        })
+      );
 
-      const rawPose = await detectPose(img, false);
+      const rawPose = await withTimeout(detectPose(img, false));
       const keypoints = normalizeMoveNetKeypoints(rawPose.keypoints);
 
       if (!areKeypointsValid(keypoints)) {
@@ -94,7 +116,7 @@ export function usePoseDetection(
       try {
         await initializeModel();
 
-        const rawPose = await detectPose(element, false);
+        const rawPose = await withTimeout(detectPose(element, false));
         const keypoints = normalizeMoveNetKeypoints(rawPose.keypoints);
 
         if (!areKeypointsValid(keypoints)) {
@@ -129,6 +151,8 @@ export function usePoseDetection(
 
     return () => {
       disposeDetector();
+      isInitialized.current = false;
+      initPromise.current = null;
     };
   }, [autoInit, initializeModel]);
 

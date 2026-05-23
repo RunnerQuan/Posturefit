@@ -14,15 +14,21 @@ function App() {
 
   const { detectPoseFromImage, isModelLoading } = usePoseDetection();
 
-  const handleCapture = useCallback((dataUrl: string) => {
+  const startAnalysisForImage = useCallback((dataUrl: string) => {
     setImageUrl(dataUrl);
+    setAnalysisResult(null);
+    setError(null);
+    setIsAnalyzing(false);
     setCurrentStep('analysis');
   }, []);
 
+  const handleCapture = useCallback((dataUrl: string) => {
+    startAnalysisForImage(dataUrl);
+  }, [startAnalysisForImage]);
+
   const handleUpload = useCallback((dataUrl: string) => {
-    setImageUrl(dataUrl);
-    setCurrentStep('analysis');
-  }, []);
+    startAnalysisForImage(dataUrl);
+  }, [startAnalysisForImage]);
 
   const handleAnalyze = useCallback(async () => {
     if (!imageUrl) return;
