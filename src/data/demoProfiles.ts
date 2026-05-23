@@ -1,35 +1,62 @@
 import type { CoachStyle, CoachGender, UserProfile } from '../types';
 
-export const COACH_PROFILES: Record<`${CoachStyle}_${CoachGender}`, { name: string; avatar: string; bio: string }> = {
+export type CoachProfileKey = `${CoachStyle}_${CoachGender}`;
+
+export const COACH_PROFILES: Record<CoachProfileKey, {
+  name: string;
+  initials: string;
+  avatarColor: string;
+  avatarBg: string;
+  bio: string;
+  styleLabel: string;
+}> = {
   encouraging_female: {
     name: '小林教练',
-    avatar: '👩‍🏫',
+    initials: '林',
+    avatarColor: 'text-pink-600',
+    avatarBg: 'bg-pink-100',
     bio: '温柔鼓励，陪你一起进步',
+    styleLabel: '鼓励型',
   },
   encouraging_male: {
     name: '小王教练',
-    avatar: '👨‍🏫',
+    initials: '王',
+    avatarColor: 'text-pink-600',
+    avatarBg: 'bg-pink-100',
     bio: '耐心指导，每一步都算数',
+    styleLabel: '鼓励型',
   },
   strict_female: {
     name: '张教练',
-    avatar: '👩‍💪',
+    initials: '张',
+    avatarColor: 'text-blue-600',
+    avatarBg: 'bg-blue-100',
     bio: '严格专业，追求效果',
+    styleLabel: '严厉型',
   },
   strict_male: {
     name: '李教练',
-    avatar: '👨‍💪',
+    initials: '李',
+    avatarColor: 'text-blue-600',
+    avatarBg: 'bg-blue-100',
     bio: '高效训练，结果导向',
+    styleLabel: '严厉型',
   },
   humorous_female: {
     name: '小美教练',
-    avatar: '👩‍🎤',
+    initials: '美',
+    avatarColor: 'text-amber-600',
+    avatarBg: 'bg-amber-100',
     bio: '轻松幽默，快乐健身',
+    styleLabel: '幽默型',
   },
   humorous_male: {
     name: '阿杰教练',
-    avatar: '👨‍🎤',
+    initials: '杰',
+    avatarColor: 'text-amber-600',
+    avatarBg: 'bg-amber-100',
     bio: '段子手带你练，枯燥说拜拜',
+    styleLabel: '幽默型',
   },
 };
 

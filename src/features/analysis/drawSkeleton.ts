@@ -176,6 +176,15 @@ function drawIssueLabels(
     forwardHead: { anchor: 'nose', offset: { x: 30, y: -20 } },
     roundedShoulder: { anchor: 'leftShoulder', offset: { x: -80, y: -20 } },
     anteriorPelvicTilt: { anchor: 'leftHip', offset: { x: -100, y: 20 } },
+    // 正面新增
+    shoulderImbalance: { anchor: 'leftShoulder', offset: { x: 80, y: -20 } },
+    pelvicTilt: { anchor: 'leftHip', offset: { x: 80, y: 20 } },
+    kneeValgus: { anchor: 'leftKnee', offset: { x: -80, y: 0 } },
+    headOffset: { anchor: 'nose', offset: { x: -80, y: 30 } },
+    centerOfGravityShift: { anchor: 'leftHip', offset: { x: -80, y: -20 } },
+    // 侧面新增
+    hunchback: { anchor: 'leftShoulder', offset: { x: 80, y: 0 } },
+    kneeHyperextension: { anchor: 'leftKnee', offset: { x: 80, y: 0 } },
   };
 
   for (const issue of issues) {

@@ -1,4 +1,4 @@
-import type { CaptureMode, PoseKeypoint17, KeypointName } from '../../types';
+import type { PoseKeypoint17, KeypointName, CaptureMode } from '../../types';
 
 const MOVENET_TO_NORMALIZED: Record<number, KeypointName> = {
   0: 'nose',
@@ -18,6 +18,14 @@ const MOVENET_TO_NORMALIZED: Record<number, KeypointName> = {
   14: 'rightKnee',
   15: 'leftAnkle',
   16: 'rightAnkle',
+};
+
+// 各拍摄模式需要的最少有效关键点数量
+export const MODE_MIN_KEYPOINTS: Record<CaptureMode, number> = {
+  fullBody: 10,    // 需要全身：鼻子、肩、髋、膝、踝
+  halfBody: 5,     // 需要：鼻子、肩(2)、髋(2)
+  closeUp: 3,      // 只需要：鼻子、肩(2)
+  sitting: 7,      // 需要：鼻子、肩(2)、髋(2)、膝(2)
 };
 
 const KEYPOINT_NAME_TO_INDEX: Record<KeypointName, number> = {
@@ -106,70 +114,13 @@ export function flipKeypointsHorizontal(keypoints: PoseKeypoint17[], imageWidth:
   }));
 }
 
-export function areKeypointsValid(keypoints: PoseKeypoint17[], minScore: number = 0.3): boolean {
-  const validCount = keypoints.filter(k => k.score >= minScore).length;
-  return validCount >= 10;
-}
-
-export type KeypointValidationResult = {
-  isValid: boolean;
-  message?: string;
-};
-
-const MODE_VALIDATION_MESSAGES: Record<CaptureMode, string> = {
-  fullBody: '请上传完整全身照片，确保头部、肩部、髋部、膝盖和脚踝都在画面内',
-  halfBody: '请上传清晰半身照片，确保头部、肩部和上半身主体都在画面内',
-  closeUp: '请上传清晰特写照片，确保头颈和双肩都在画面内',
-  sitting: '请上传清晰坐姿照片，确保头部、肩部和上半身主体都在画面内',
-};
-
-const REQUIRED_KEYPOINT_GROUPS: Record<CaptureMode, KeypointName[][]> = {
-  fullBody: [
-    ['nose', 'leftEar', 'rightEar'],
-    ['leftShoulder', 'rightShoulder'],
-    ['leftHip', 'rightHip'],
-    ['leftKnee', 'rightKnee'],
-    ['leftAnkle', 'rightAnkle'],
-  ],
-  halfBody: [
-    ['nose', 'leftEar', 'rightEar'],
-    ['leftShoulder', 'rightShoulder'],
-    ['leftHip', 'rightHip'],
-  ],
-  closeUp: [
-    ['leftEar', 'rightEar'],
-    ['leftShoulder', 'rightShoulder'],
-  ],
-  sitting: [
-    ['nose', 'leftEar', 'rightEar'],
-    ['leftShoulder', 'rightShoulder'],
-    ['leftHip', 'rightHip'],
-  ],
-};
-
-function hasVisibleKeypoint(keypoints: PoseKeypoint17[], names: KeypointName[], minScore: number): boolean {
-  return names.some(name => {
-    const keypoint = getKeypointByName(keypoints, name);
-    return keypoint !== undefined && keypoint.score >= minScore;
-  });
-}
-
-export function validateKeypointsForMode(
+export function areKeypointsValid(
   keypoints: PoseKeypoint17[],
-  captureMode: CaptureMode,
-  minScore: number = 0.3
-): KeypointValidationResult {
-  const groups = REQUIRED_KEYPOINT_GROUPS[captureMode];
-  const hasRequiredGroups = groups.every(group => hasVisibleKeypoint(keypoints, group, minScore));
-
-  if (!hasRequiredGroups) {
-    return {
-      isValid: false,
-      message: MODE_VALIDATION_MESSAGES[captureMode],
-    };
-  }
-
-  return { isValid: true };
+  minScore: number = 0.3,
+  minKeypointCount: number = 10
+): boolean {
+  const validCount = keypoints.filter(k => k.score >= minScore).length;
+  return validCount >= minKeypointCount;
 }
 
 export const SKELETON_CONNECTIONS: [KeypointName, KeypointName][] = [
@@ -190,3 +141,87 @@ export const SKELETON_CONNECTIONS: [KeypointName, KeypointName][] = [
   ['leftKnee', 'leftAnkle'],
   ['rightKnee', 'rightAnkle'],
 ];
+
+// Keypoint validation requirements by capture mode
+const MODE_REQUIREMENTS: Record<CaptureMode, { required: KeypointName[]; optional: KeypointName[]; message: string }> = {
+  fullBody: {
+    required: ['nose', 'leftShoulder', 'rightShoulder', 'leftHip', 'rightHip', 'leftKnee', 'rightKnee', 'leftAnkle', 'rightAnkle'],
+    optional: ['leftEye', 'rightEye', 'leftEar', 'rightEar', 'leftElbow', 'rightElbow', 'leftWrist', 'rightWrist'],
+    message: '请上传完整全身照片，确保头部、肩部、髋部、膝盖和脚踝都在画面内',
+  },
+  halfBody: {
+    required: ['nose', 'leftShoulder', 'rightShoulder', 'leftHip', 'rightHip'],
+    optional: ['leftEye', 'rightEye', 'leftEar', 'rightEar', 'leftElbow', 'rightElbow', 'leftWrist', 'rightWrist', 'leftKnee', 'rightKnee', 'leftAnkle', 'rightAnkle'],
+    message: '请上传包含肩部和髋部的照片',
+  },
+  closeUp: {
+    required: ['nose', 'leftShoulder', 'rightShoulder'],
+    optional: ['leftEye', 'rightEye', 'leftEar', 'rightEar', 'leftElbow', 'rightElbow', 'leftWrist', 'rightWrist', 'leftHip', 'rightHip', 'leftKnee', 'rightKnee', 'leftAnkle', 'rightAnkle'],
+    message: '请上传包含肩颈部位的照片',
+  },
+  sitting: {
+    required: ['nose', 'leftShoulder', 'rightShoulder', 'leftHip', 'rightHip', 'leftKnee', 'rightKnee'],
+    optional: ['leftEye', 'rightEye', 'leftEar', 'rightEar', 'leftElbow', 'rightElbow', 'leftWrist', 'rightWrist', 'leftAnkle', 'rightAnkle'],
+    message: '请上传包含肩部、髋部和膝盖的照片',
+  },
+};
+
+// 关键点中文标签映射
+export const KEYPOINT_LABELS: Record<KeypointName, string> = {
+  nose: '鼻子',
+  leftEye: '左眼',
+  rightEye: '右眼',
+  leftEar: '左耳',
+  rightEar: '右耳',
+  leftShoulder: '左肩',
+  rightShoulder: '右肩',
+  leftElbow: '左肘',
+  rightElbow: '右肘',
+  leftWrist: '左手腕',
+  rightWrist: '右手腕',
+  leftHip: '左髋',
+  rightHip: '右髋',
+  leftKnee: '左膝',
+  rightKnee: '右膝',
+  leftAnkle: '左踝',
+  rightAnkle: '右踝',
+};
+
+export interface ValidationResult {
+  isValid: boolean;
+  message: string;
+  missingKeypoints?: KeypointName[];
+}
+
+export function validateKeypointsForMode(keypoints: PoseKeypoint17[], mode: CaptureMode): ValidationResult {
+  console.log('[DEBUG validateKeypointsForMode] 开始验证, mode:', mode);
+  console.log('[DEBUG validateKeypointsForMode] 传入的关键点数量:', keypoints.length);
+
+  const requirements = MODE_REQUIREMENTS[mode];
+  const validKeypoints = keypoints.filter(k => k.score >= 0.3);
+  console.log('[DEBUG validateKeypointsForMode] 有效关键点数量(score>=0.3):', validKeypoints.length);
+  console.log('[DEBUG validateKeypointsForMode] 有效关键点:', validKeypoints.map(k => `${k.name}:${k.score?.toFixed(2)}`).join(', '));
+  console.log('[DEBUG validateKeypointsForMode] 要求的关键点:', requirements.required.join(', '));
+
+  const missingKeypoints: KeypointName[] = [];
+
+  for (const required of requirements.required) {
+    const found = validKeypoints.find(k => k.name === required);
+    if (!found) {
+      console.log('[DEBUG validateKeypointsForMode] 缺失:', required);
+      missingKeypoints.push(required);
+    }
+  }
+
+  console.log('[DEBUG validateKeypointsForMode] 缺失的关键点列表:', missingKeypoints);
+
+  if (missingKeypoints.length > 0) {
+    return {
+      isValid: false,
+      message: requirements.message,
+      missingKeypoints,
+    };
+  }
+
+  return { isValid: true, message: '验证通过' };
+}

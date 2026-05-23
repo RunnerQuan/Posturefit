@@ -62,11 +62,9 @@ export type PostureIssue = {
 };
 
 export type PostureAnalysisResult = {
-  captureMode: CaptureMode;
   keypoints: PoseKeypoint17[];
   metrics: PostureAngleMetrics;
   issues: PostureIssue[];
-  supportedIssueTypes: PostureIssueType[];
   primaryIssue: PostureIssueType | null;
   score?: number;
   analyzedAt: string;
@@ -210,8 +208,8 @@ export function usePoseDetection(
   isModelLoading: boolean;
   isDetecting: boolean;
   error: string | null;
-  detectPoseFromImage: (imageUrl: string, captureMode?: CaptureMode) => Promise<PoseKeypoint17[]>;
-  detectPoseFromElement: (element: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, captureMode?: CaptureMode) => Promise<PoseKeypoint17[]>;
+  detectPoseFromImage: (imageUrl: string) => Promise<PoseKeypoint17[]>;
+  detectPoseFromElement: (element: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement) => Promise<PoseKeypoint17[]>;
   modelType: MoveNetModelType;
   setModelType: (type: MoveNetModelType) => void;
 }

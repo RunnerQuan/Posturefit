@@ -1,12 +1,17 @@
 import { useCameraAccess } from './useCameraAccess';
-import { Camera, Upload, AlertCircle, CheckCircle } from 'lucide-react';
-import type { CaptureMode } from '../../types';
+import { Camera, Upload, AlertCircle, CheckCircle, RotateCcw } from 'lucide-react';
+import type { CaptureMode, ViewSelection, PoseView } from '../../types';
 
 interface CameraCaptureProps {
-  onCapture: (imageDataUrl: string) => void;
+  onCapture: (imageDataUrl: string, view: PoseView) => void;
   selectedMode: CaptureMode;
   onModeChange: (mode: CaptureMode) => void;
-  onUploadImage: (imageDataUrl: string) => void;
+  onUploadImage: (imageDataUrl: string, view: PoseView) => void;
+  viewSelection: ViewSelection;
+  onViewSelectionChange: (view: ViewSelection) => void;
+  currentCaptureView?: PoseView | null;
+  onResetCapture?: () => void;
+  showViewSelection?: boolean;
 }
 
 const CAPTURE_MODES: { value: CaptureMode; label: string }[] = [
@@ -16,11 +21,26 @@ const CAPTURE_MODES: { value: CaptureMode; label: string }[] = [
   { value: 'sitting', label: '坐姿' },
 ];
 
-const MODE_GUIDES: Record<CaptureMode, string> = {
-  fullBody: '请站直，双脚与肩同宽，面向摄像头',
-  halfBody: '请露出上半身，双臂自然下垂',
-  closeUp: '请重点拍摄肩颈部位',
-  sitting: '请端正坐姿，双手放在膝盖上',
+const VIEW_SELECTIONS: { value: ViewSelection; label: string; desc: string }[] = [
+  { value: 'front', label: '正面', desc: '只拍正面' },
+  { value: 'side', label: '侧面', desc: '只拍侧面' },
+  { value: 'dual', label: '双视角', desc: '正面+侧面' },
+];
+
+// 正面拍摄指引
+const FRONT_MODE_GUIDES: Record<CaptureMode, string> = {
+  fullBody: '请面向摄像头站立，双脚与肩同宽，保持放松',
+  halfBody: '请面向摄像头，露出上半身，双臂自然下垂，保持放松',
+  closeUp: '请面向摄像头，肩颈部位对准画面，保持放松',
+  sitting: '请端正坐姿，面向摄像头，双手放在膝盖上，保持放松',
+};
+
+// 侧面拍摄指引
+const SIDE_MODE_GUIDES: Record<CaptureMode, string> = {
+  fullBody: '请侧身站立，双脚与肩同宽，保持放松',
+  halfBody: '请侧身站立，露出上半身，双臂自然下垂，保持放松',
+  closeUp: '请侧身站立，肩颈部位对准画面，保持放松',
+  sitting: '请侧身端正坐姿，双手放在膝盖上，保持放松',
 };
 
 export function CameraCapture({
@@ -28,6 +48,11 @@ export function CameraCapture({
   selectedMode,
   onModeChange,
   onUploadImage,
+  viewSelection,
+  onViewSelectionChange,
+  currentCaptureView,
+  onResetCapture,
+  showViewSelection = true,
 }: CameraCaptureProps) {
   const {
     videoRef,
@@ -38,10 +63,32 @@ export function CameraCapture({
     captureFrame,
   } = useCameraAccess();
 
+  // 根据当前拍摄状态决定显示哪个视角指引
+  const getCurrentViewGuide = (): string => {
+    if (currentCaptureView === 'front') {
+      return SIDE_MODE_GUIDES[selectedMode].replace('请', '现在请');
+    }
+    if (currentCaptureView === 'side') {
+      return '已拍摄侧面照，请稍候...';
+    }
+    return FRONT_MODE_GUIDES[selectedMode];
+  };
+
+  // 是否显示重拍按钮
+  const showResetButton = currentCaptureView === 'front' && viewSelection === 'dual';
+
+  // 是否已完成第一张拍摄（正面）
+  const isFirstCaptureDone = currentCaptureView === 'front';
+
+  // 是否已完成所有拍摄
+  const isAllCapturesDone = currentCaptureView === 'side';
+
   const handleCapture = () => {
     const frame = captureFrame();
     if (frame) {
-      onCapture(frame);
+      // 如果已完成正面拍摄，下一张是侧面
+      const nextView: PoseView = currentCaptureView === 'front' ? 'side' : 'front';
+      onCapture(frame, nextView);
     }
   };
 
@@ -56,7 +103,8 @@ export function CameraCapture({
         reader.onload = (event) => {
           const dataUrl = event.target?.result as string;
           if (dataUrl) {
-            onUploadImage(dataUrl);
+            const nextView: PoseView = currentCaptureView === 'front' ? 'side' : 'front';
+            onUploadImage(dataUrl, nextView);
           }
         };
         reader.readAsDataURL(file);
@@ -67,8 +115,32 @@ export function CameraCapture({
 
   return (
     <div className="flex flex-col h-full">
+      {showViewSelection && (
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-600 mb-2">
+            拍摄视角
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {VIEW_SELECTIONS.map((view) => (
+              <button
+                key={view.value}
+                onClick={() => onViewSelectionChange(view.value)}
+                className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors cursor-pointer flex items-center gap-2 ${
+                  viewSelection === view.value
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-white text-gray-600 shadow-card hover:shadow-card-hover hover:bg-gray-50'
+                }`}
+              >
+                {view.label}
+                <span className="text-xs opacity-70">{view.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-600 mb-2">
           拍摄模式
         </label>
         <div className="flex flex-wrap gap-2">
@@ -76,10 +148,10 @@ export function CameraCapture({
             <button
               key={mode.value}
               onClick={() => onModeChange(mode.value)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors cursor-pointer ${
                 selectedMode === mode.value
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-white text-gray-600 shadow-card hover:shadow-card-hover hover:bg-gray-50'
               }`}
             >
               {mode.label}
@@ -88,19 +160,47 @@ export function CameraCapture({
         </div>
       </div>
 
-      <div className="flex-1 bg-gray-900 rounded-xl overflow-hidden relative">
+      {/* 拍摄进度指示器 */}
+      {viewSelection === 'dual' && (
+        <div className="mb-4 flex items-center justify-center gap-4">
+          <div className={`flex items-center gap-2 ${isFirstCaptureDone ? 'text-primary-600' : 'text-primary-500'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              isFirstCaptureDone ? 'bg-primary-100 text-primary-600' : 'bg-primary-50 text-primary-500'
+            }`}>
+              {isFirstCaptureDone ? (
+                <CheckCircle className="w-4 h-4" />
+              ) : '1'}
+            </div>
+            <span className="text-sm font-medium">正面照</span>
+          </div>
+          <div className="w-8 h-0.5 bg-gray-200 rounded-full" />
+          <div className={`flex items-center gap-2 ${isAllCapturesDone ? 'text-primary-600' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              isAllCapturesDone ? 'bg-primary-100 text-primary-600' : 'bg-gray-100 text-gray-400'
+            }`}>
+              {isAllCapturesDone ? (
+                <CheckCircle className="w-4 h-4" />
+              ) : '2'}
+            </div>
+            <span className="text-sm font-medium">侧面照</span>
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 bg-gray-900 rounded-2xl overflow-hidden relative">
         {permissionState === 'prompt' && !isActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800">
             <Camera className="w-16 h-16 text-gray-400 mb-4" />
             <button
               onClick={requestCameraAccess}
-              className="px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors"
+              className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium transition-colors cursor-pointer flex items-center gap-2"
             >
+              <Camera className="w-5 h-5" />
               开启摄像头
             </button>
             <button
               onClick={handleUploadClick}
-              className="mt-4 px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-500 transition-colors flex items-center gap-2"
+              className="mt-4 px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 rounded-2xl font-medium transition-colors cursor-pointer flex items-center gap-2 shadow-card"
             >
               <Upload className="w-5 h-5" />
               上传图片
@@ -117,7 +217,7 @@ export function CameraCapture({
             </p>
             <button
               onClick={handleUploadClick}
-              className="px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors flex items-center gap-2"
+              className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium transition-colors cursor-pointer flex items-center gap-2"
             >
               <Upload className="w-5 h-5" />
               上传图片
@@ -131,7 +231,7 @@ export function CameraCapture({
             <p className="text-gray-300 text-center mb-4">未检测到可用摄像头</p>
             <button
               onClick={handleUploadClick}
-              className="px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors flex items-center gap-2"
+              className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium transition-colors cursor-pointer flex items-center gap-2"
             >
               <Upload className="w-5 h-5" />
               上传图片
@@ -140,7 +240,7 @@ export function CameraCapture({
         )}
 
         {error && permissionState !== 'denied' && (
-          <div className="absolute top-4 left-4 right-4 bg-red-500/90 text-white px-4 py-2 rounded-lg text-sm">
+          <div className="absolute top-4 left-4 right-4 bg-red-500/90 text-white px-4 py-2 rounded-xl text-sm">
             {error}
           </div>
         )}
@@ -156,40 +256,50 @@ export function CameraCapture({
         {isActive && (
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
             <p className="text-white text-sm text-center">
-              {MODE_GUIDES[selectedMode]}
+              {getCurrentViewGuide()}
             </p>
           </div>
         )}
       </div>
 
-      <div className="mt-4 flex gap-4 justify-center">
+      <div className="mt-4 flex gap-3 justify-center items-center flex-wrap">
         {isActive ? (
           <button
             onClick={handleCapture}
-            className="px-8 py-4 bg-blue-500 text-white rounded-xl font-medium text-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+            className="px-8 py-4 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium text-base transition-colors cursor-pointer flex items-center gap-2"
           >
-            <Camera className="w-6 h-6" />
-            拍照
+            <Camera className="w-5 h-5" />
+            {isFirstCaptureDone ? '拍摄侧面' : '拍照'}
           </button>
         ) : permissionState !== 'denied' && permissionState !== 'unavailable' ? (
           <button
             onClick={requestCameraAccess}
-            className="px-8 py-4 bg-blue-500 text-white rounded-xl font-medium text-lg hover:bg-blue-600 transition-colors"
+            className="px-8 py-4 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium text-base transition-colors cursor-pointer flex items-center gap-2"
           >
+            <Camera className="w-5 h-5" />
             开启摄像头
           </button>
         ) : null}
         <button
           onClick={handleUploadClick}
-          className="px-8 py-4 bg-gray-100 text-gray-700 rounded-xl font-medium text-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+          className="px-8 py-4 bg-white hover:bg-gray-50 text-gray-600 rounded-2xl font-medium text-base transition-colors cursor-pointer flex items-center gap-2 shadow-card hover:shadow-card-hover border border-gray-100 hover:border-primary-200 hover:text-primary-600"
         >
-          <Upload className="w-6 h-6" />
+          <Upload className="w-5 h-5" />
           上传图片
         </button>
+        {showResetButton && onResetCapture && (
+          <button
+            onClick={onResetCapture}
+            className="px-8 py-4 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl font-medium text-base transition-colors cursor-pointer flex items-center gap-2"
+          >
+            <RotateCcw className="w-5 h-5" />
+            重拍正面
+          </button>
+        )}
       </div>
 
       {isActive && (
-        <div className="mt-2 flex items-center justify-center gap-2 text-green-400 text-sm">
+        <div className="mt-2 flex items-center justify-center gap-2 text-primary-400 text-sm">
           <CheckCircle className="w-4 h-4" />
           摄像头已开启
         </div>

@@ -1,4 +1,4 @@
-import type { AppState, PostureSession, CaptureSourceType, CaptureMode } from '../../types';
+import type { AppState, PostureSession, CaptureSourceType, CaptureMode, ViewSelection } from '../../types';
 import { STORAGE_KEY, SESSION_LIMIT } from '../../lib/storage';
 import { generateSessionId } from '../../lib/ids';
 import { getCurrentISOString } from '../../lib/time';
@@ -7,7 +7,7 @@ function createEmptyAppState(): AppState {
   return {
     currentSessionId: null,
     sessions: [],
-    schemaVersion: 1,
+    schemaVersion: 2,
   };
 }
 
@@ -18,7 +18,7 @@ export function loadAppState(): AppState {
       return createEmptyAppState();
     }
     const parsed = JSON.parse(stored) as AppState;
-    if (parsed.schemaVersion !== 1) {
+    if (parsed.schemaVersion !== 2) {
       console.warn('Storage schema version mismatch, resetting');
       return createEmptyAppState();
     }
@@ -56,6 +56,8 @@ export function createSession(sourceType: CaptureSourceType, captureMode: Captur
     step: 'capture',
     sourceType,
     captureMode,
+    viewSelection: 'dual' as ViewSelection,
+    photos: [],
     chatMessages: [],
   };
 }

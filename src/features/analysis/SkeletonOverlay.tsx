@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PostureAnalysisResult } from '../../types';
 import { drawSkeleton } from './drawSkeleton';
 
@@ -6,12 +6,14 @@ interface SkeletonOverlayProps {
   result: PostureAnalysisResult;
   imageUrl: string;
   className?: string;
+  autoAspectRatio?: boolean;
 }
 
-export function SkeletonOverlay({ result, imageUrl, className = '' }: SkeletonOverlayProps) {
+export function SkeletonOverlay({ result, imageUrl, className = '', autoAspectRatio = false }: SkeletonOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -29,6 +31,10 @@ export function SkeletonOverlay({ result, imageUrl, className = '' }: SkeletonOv
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         imageRef.current = img;
+        // 设置宽高比
+        if (autoAspectRatio) {
+          setAspectRatio(img.naturalWidth / img.naturalHeight);
+        }
         drawOnCanvas();
       };
       img.src = imageUrl;
@@ -64,7 +70,7 @@ export function SkeletonOverlay({ result, imageUrl, className = '' }: SkeletonOv
         }
       );
     }
-  }, [result, imageUrl]);
+  }, [result, imageUrl, autoAspectRatio]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -76,16 +82,16 @@ export function SkeletonOverlay({ result, imageUrl, className = '' }: SkeletonOv
     const resizeObserver = new ResizeObserver(() => {
       const containerWidth = container.clientWidth;
       const containerHeight = container.clientHeight;
-      
+
       if (imageRef.current) {
         const img = imageRef.current;
         const imgWidth = img.naturalWidth || img.width;
         const imgHeight = img.naturalHeight || img.height;
-        
+
         const scaleX = containerWidth / imgWidth;
         const scaleY = containerHeight / imgHeight;
         const scale = Math.min(scaleX, scaleY);
-        
+
         canvas.style.width = `${imgWidth * scale}px`;
         canvas.style.height = `${imgHeight * scale}px`;
       }
@@ -95,19 +101,26 @@ export function SkeletonOverlay({ result, imageUrl, className = '' }: SkeletonOv
     return () => resizeObserver.disconnect();
   }, []);
 
+  // 计算容器样式
+  const containerStyle: React.CSSProperties = {};
+  if (autoAspectRatio && aspectRatio) {
+    containerStyle.aspectRatio = aspectRatio;
+  }
+
   return (
     <div
       ref={containerRef}
-      className={`relative bg-gray-900 rounded-xl overflow-hidden ${className}`}
+      className={`relative bg-gray-900 rounded-2xl overflow-hidden flex items-center justify-center ${className}`}
+      style={containerStyle}
     >
       {result.keypoints.length === 0 ? (
-        <div className="flex items-center justify-center h-full min-h-[300px]">
+        <div className="flex items-center justify-center h-full min-h-[200px] w-full">
           <p className="text-gray-400">暂无分析数据</p>
         </div>
       ) : (
         <canvas
           ref={canvasRef}
-          className="max-w-full max-h-full mx-auto"
+          className="max-w-full max-h-full"
           style={{ objectFit: 'contain' }}
         />
       )}

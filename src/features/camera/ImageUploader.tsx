@@ -41,9 +41,9 @@ export function ImageUploader({
   return (
     <div
       onClick={handleClick}
-      className={`border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors ${className}`}
+      className={`border-2 border-dashed border-gray-200 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-primary-300 hover:bg-primary-50/50 transition-colors ${className}`}
     >
-      <ImageIcon className="w-12 h-12 text-gray-400 mb-3" />
+      <ImageIcon className="w-12 h-12 text-gray-300 mb-3" />
       <p className="text-gray-600 font-medium">点击上传图片</p>
       <p className="text-gray-400 text-sm mt-1">支持 JPG、PNG 格式</p>
     </div>
