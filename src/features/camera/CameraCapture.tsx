@@ -125,14 +125,13 @@ export function CameraCapture({
               <button
                 key={view.value}
                 onClick={() => onViewSelectionChange(view.value)}
-                className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors cursor-pointer flex items-center gap-2 ${
+                className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors cursor-pointer ${
                   viewSelection === view.value
-                    ? 'bg-primary-500 text-white'
+                    ? 'bg-gradient-to-r from-blush-400 to-mist-400 text-white'
                     : 'bg-white text-gray-600 shadow-card hover:shadow-card-hover hover:bg-gray-50'
                 }`}
               >
                 {view.label}
-                <span className="text-xs opacity-70">{view.desc}</span>
               </button>
             ))}
           </div>
@@ -150,7 +149,7 @@ export function CameraCapture({
               onClick={() => onModeChange(mode.value)}
               className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors cursor-pointer ${
                 selectedMode === mode.value
-                  ? 'bg-primary-500 text-white'
+                  ? 'bg-gradient-to-r from-blush-400 to-mist-400 text-white'
                   : 'bg-white text-gray-600 shadow-card hover:shadow-card-hover hover:bg-gray-50'
               }`}
             >
@@ -163,7 +162,7 @@ export function CameraCapture({
       {/* 拍摄进度指示器 */}
       {viewSelection === 'dual' && (
         <div className="mb-4 flex items-center justify-center gap-4">
-          <div className={`flex items-center gap-2 ${isFirstCaptureDone ? 'text-primary-600' : 'text-primary-500'}`}>
+          <div className={`flex items-center gap-2 ${isFirstCaptureDone ? 'text-blush-600' : 'text-blush-500'}`}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
               isFirstCaptureDone ? 'bg-primary-100 text-primary-600' : 'bg-primary-50 text-primary-500'
             }`}>
@@ -174,7 +173,7 @@ export function CameraCapture({
             <span className="text-sm font-medium">正面照</span>
           </div>
           <div className="w-8 h-0.5 bg-gray-200 rounded-full" />
-          <div className={`flex items-center gap-2 ${isAllCapturesDone ? 'text-primary-600' : 'text-gray-400'}`}>
+          <div className={`flex items-center gap-2 ${isAllCapturesDone ? 'text-blush-600' : 'text-gray-400'}`}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
               isAllCapturesDone ? 'bg-primary-100 text-primary-600' : 'bg-gray-100 text-gray-400'
             }`}>
@@ -266,7 +265,7 @@ export function CameraCapture({
         {isActive ? (
           <button
             onClick={handleCapture}
-            className="px-8 py-4 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium text-base transition-colors cursor-pointer flex items-center gap-2"
+            className="px-10 py-4 bg-gradient-to-r from-blush-500 to-mist-500 hover:from-blush-600 hover:to-mist-600 text-white rounded-2xl font-semibold text-lg transition-colors cursor-pointer flex items-center gap-2 shadow-bubble"
           >
             <Camera className="w-5 h-5" />
             {isFirstCaptureDone ? '拍摄侧面' : '拍照'}
@@ -274,7 +273,7 @@ export function CameraCapture({
         ) : permissionState !== 'denied' && permissionState !== 'unavailable' ? (
           <button
             onClick={requestCameraAccess}
-            className="px-8 py-4 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium text-base transition-colors cursor-pointer flex items-center gap-2"
+            className="px-10 py-4 bg-gradient-to-r from-blush-500 to-mist-500 hover:from-blush-600 hover:to-mist-600 text-white rounded-2xl font-semibold text-lg transition-colors cursor-pointer flex items-center gap-2 shadow-bubble"
           >
             <Camera className="w-5 h-5" />
             开启摄像头
@@ -282,7 +281,7 @@ export function CameraCapture({
         ) : null}
         <button
           onClick={handleUploadClick}
-          className="px-8 py-4 bg-white hover:bg-gray-50 text-gray-600 rounded-2xl font-medium text-base transition-colors cursor-pointer flex items-center gap-2 shadow-card hover:shadow-card-hover border border-gray-100 hover:border-primary-200 hover:text-primary-600"
+          className="px-10 py-4 bg-white/70 hover:bg-white backdrop-blur-sm text-blush-600 rounded-2xl font-semibold text-lg transition-colors cursor-pointer flex items-center gap-2 shadow-soft border border-white/40 hover:shadow-bubble"
         >
           <Upload className="w-5 h-5" />
           上传图片
@@ -290,7 +289,7 @@ export function CameraCapture({
         {showResetButton && onResetCapture && (
           <button
             onClick={onResetCapture}
-            className="px-8 py-4 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl font-medium text-base transition-colors cursor-pointer flex items-center gap-2"
+            className="px-8 py-4 bg-orange-50/70 hover:bg-orange-50 backdrop-blur-sm text-orange-600 rounded-2xl font-semibold text-base transition-colors cursor-pointer flex items-center gap-2 border border-orange-100/50"
           >
             <RotateCcw className="w-5 h-5" />
             重拍正面
@@ -299,7 +298,7 @@ export function CameraCapture({
       </div>
 
       {isActive && (
-        <div className="mt-2 flex items-center justify-center gap-2 text-primary-400 text-sm">
+        <div className="mt-2 flex items-center justify-center gap-2 text-blush-400 text-sm">
           <CheckCircle className="w-4 h-4" />
           摄像头已开启
         </div>

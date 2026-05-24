@@ -16,7 +16,7 @@ function renderInline(text: string): ReactNode[] {
       nodes.push(text.slice(lastIndex, match.index));
     }
     if (match[2]) {
-      nodes.push(<strong key={`${match.index}-strong`} className="font-semibold text-gray-900">{match[2]}</strong>);
+      nodes.push(<strong key={`${match.index}-strong`} className="font-semibold bg-gradient-to-r from-blush-600 to-mist-600 bg-clip-text text-transparent">{match[2]}</strong>);
     } else if (match[3] && match[4]) {
       nodes.push(
         <a
@@ -24,7 +24,7 @@ function renderInline(text: string): ReactNode[] {
           href={match[4]}
           target="_blank"
           rel="noreferrer"
-          className="font-medium text-primary-700 underline decoration-primary-200 underline-offset-4"
+          className="font-medium bg-gradient-to-r from-blush-500 to-mist-500 bg-clip-text text-transparent underline decoration-blush-200 underline-offset-4 hover:decoration-mist-300 transition-all"
         >
           {match[3]}
         </a>
@@ -51,7 +51,7 @@ export function MarkdownMessage({ content, className = '' }: MarkdownMessageProp
     elements.push(
       <ul key={`list-${elements.length}`} className="my-2 list-disc space-y-1 pl-5">
         {listItems.map((item, index) => (
-          <li key={`${item}-${index}`}>{renderInline(item)}</li>
+          <li key={`${item}-${index}`} className="text-blush-700">{renderInline(item)}</li>
         ))}
       </ul>
     );
@@ -71,7 +71,7 @@ export function MarkdownMessage({ content, className = '' }: MarkdownMessageProp
       flushList();
       const Tag = heading[1].length === 1 ? 'h3' : 'h4';
       elements.push(
-        <Tag key={`heading-${index}`} className="mt-2 font-semibold text-gray-900">
+        <Tag key={`heading-${index}`} className="mt-2 font-semibold bg-gradient-to-r from-blush-600 to-mist-600 bg-clip-text text-transparent">
           {renderInline(heading[2])}
         </Tag>
       );
@@ -86,7 +86,7 @@ export function MarkdownMessage({ content, className = '' }: MarkdownMessageProp
 
     flushList();
     elements.push(
-      <p key={`p-${index}`} className="my-1">
+      <p key={`p-${index}`} className="my-1 text-blush-800">
         {renderInline(trimmed)}
       </p>
     );

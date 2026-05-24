@@ -53,14 +53,15 @@ export function AnalysisLoader({ message }: AnalysisLoaderProps) {
 
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4">
-      <div className="w-full max-w-sm space-y-6">
-        {/* Stage indicators */}
+      <div className="w-full max-w-sm space-y-8">
+        {/* 阶段指示器 */}
         <div className="flex justify-between items-center relative">
-          {/* Background track */}
-          <div className="absolute top-4 left-0 right-0 h-0.5 bg-gray-100" />
-          {/* Progress track */}
+          {/* 背景轨道 */}
+          <div className="absolute top-5 left-0 right-0 h-0.5 bg-gradient-to-r from-blush-100 to-mist-100 rounded-full" />
+
+          {/* 进度轨道 */}
           <div
-            className="absolute top-4 left-0 h-0.5 bg-primary-400 transition-all duration-300"
+            className="absolute top-5 left-0 h-0.5 bg-gradient-to-r from-blush-400 to-mist-400 rounded-full transition-all duration-500"
             style={{ width: `${(activeStage / (STAGES.length - 1)) * 100}%` }}
           />
 
@@ -70,23 +71,41 @@ export function AnalysisLoader({ message }: AnalysisLoaderProps) {
             const Icon = stage.icon;
 
             return (
-              <div key={stage.id} className="flex flex-col items-center gap-2 relative z-10">
+              <div key={stage.id} className="flex flex-col items-center gap-3 relative z-10">
+                {/* 图标容器 */}
                 <div
                   className={`
-                    w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300
-                    ${isDone || isActive ? 'bg-primary-500 text-white shadow-card' : 'bg-gray-100 text-gray-400'}
-                    ${isActive ? 'ring-4 ring-primary-100' : ''}
+                    w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 relative
+                    ${isDone || isActive
+                      ? 'bg-gradient-to-br from-blush-400 to-mist-400 text-white shadow-bubble'
+                      : 'bg-white text-gray-300 border border-gray-100'
+                    }
+                    ${isActive ? 'ring-4 ring-blush-100 scale-110' : ''}
                   `}
                 >
-                  <Icon className="w-4 h-4" />
+                  {/* 发光效果 */}
+                  {(isDone || isActive) && (
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blush-400/30 to-mist-400/30 blur-md animate-pulse" />
+                  )}
+
+                  <Icon className={`w-5 h-5 relative z-10 ${isActive ? 'animate-bounce' : ''}`} />
+
+                  {/* 完成勾选标记 */}
+                  {isDone && (
+                    <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-sm">
+                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Stage labels */}
-        <div className="flex justify-between">
+        {/* 阶段标签 */}
+        <div className="flex justify-between px-2">
           {STAGES.map((stage, index) => {
             const isDone = index < activeStage;
             const isActive = index === activeStage;
@@ -95,8 +114,13 @@ export function AnalysisLoader({ message }: AnalysisLoaderProps) {
               <span
                 key={stage.id}
                 className={`
-                  text-xs font-medium transition-all duration-300
-                  ${isDone ? 'text-primary-600' : isActive ? 'text-gray-700 animate-pulse-glow' : 'text-gray-400'}
+                  text-xs font-medium transition-all duration-300 text-center
+                  ${isDone
+                    ? 'text-blush-500'
+                    : isActive
+                      ? 'text-blush-600 font-semibold animate-pulse'
+                      : 'text-gray-400'
+                  }
                 `}
               >
                 {stage.label}
@@ -105,15 +129,15 @@ export function AnalysisLoader({ message }: AnalysisLoaderProps) {
           })}
         </div>
 
-        {/* Active stage progress bar */}
-        <div className="space-y-2">
-          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        {/* 活跃阶段进度条 */}
+        <div className="space-y-3">
+          <div className="h-2 bg-gradient-to-r from-blush-50 to-mist-50 rounded-full overflow-hidden shadow-inner">
             <div
-              className="h-full bg-primary-500 rounded-full transition-all duration-100 ease-out"
+              className="h-full bg-gradient-to-r from-blush-400 via-mist-400 to-sky-300 rounded-full transition-all duration-100 ease-out shadow-glow"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-center text-sm text-gray-500 animate-pulse-glow">
+          <p className="text-center text-sm text-blush-500 animate-pulse font-medium">
             {message || STAGES[activeStage]?.label || '正在处理...'}
           </p>
         </div>

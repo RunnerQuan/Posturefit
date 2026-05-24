@@ -88,7 +88,7 @@ export function CombinedAnalysisView({
     return (
       <div className="space-y-6">
         {/* 体态评分概览 */}
-        <div className="bg-white rounded-2xl shadow-card p-6">
+        <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-card p-5 border border-white/40">
           <div className="flex items-center gap-6">
             <ScoreRing
               score={combinedResult.score}
@@ -114,8 +114,8 @@ export function CombinedAnalysisView({
         <div className="grid grid-cols-2 gap-4">
           {/* 正面骨架图 */}
           <div>
-            <h3 className="text-sm font-medium text-primary-600 mb-2 text-center">正面视图</h3>
-            <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <h3 className="text-sm font-medium text-blush-500 mb-2 text-center">正面视图</h3>
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-soft overflow-hidden border border-white/50">
               {frontAnalysis ? (
                 <SkeletonOverlay
                   result={frontAnalysis}
@@ -125,8 +125,8 @@ export function CombinedAnalysisView({
                   view="front"
                 />
               ) : (
-                <div className="w-full min-h-[200px] bg-gray-50 rounded-2xl flex items-center justify-center">
-                  <p className="text-gray-400">未拍摄正面照</p>
+                <div className="w-full min-h-[200px] bg-gradient-to-br from-blush-50/50 to-mist-50/50 rounded-2xl flex items-center justify-center">
+                  <p className="text-mist-400">未拍摄正面照</p>
                 </div>
               )}
             </div>
@@ -134,8 +134,8 @@ export function CombinedAnalysisView({
 
           {/* 侧面骨架图 */}
           <div>
-            <h3 className="text-sm font-medium text-primary-600 mb-2 text-center">侧面视图</h3>
-            <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+            <h3 className="text-sm font-medium text-blush-500 mb-2 text-center">侧面视图</h3>
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-soft overflow-hidden border border-white/50">
               {sideAnalysis ? (
                 <SkeletonOverlay
                   result={sideAnalysis}
@@ -145,8 +145,8 @@ export function CombinedAnalysisView({
                   view="side"
                 />
               ) : (
-                <div className="w-full min-h-[200px] bg-gray-50 rounded-2xl flex items-center justify-center">
-                  <p className="text-gray-400">未拍摄侧面照</p>
+                <div className="w-full min-h-[200px] bg-gradient-to-br from-blush-50/50 to-mist-50/50 rounded-2xl flex items-center justify-center">
+                  <p className="text-mist-400">未拍摄侧面照</p>
                 </div>
               )}
             </div>
@@ -155,13 +155,13 @@ export function CombinedAnalysisView({
 
         {/* 分组问题列表 */}
         <div className="space-y-4">
-          <h3 className="text-base font-medium text-gray-700">检测到的体态问题</h3>
+          <h3 className="text-base font-medium text-blush-700">检测到的体态问题</h3>
 
           {/* 正面问题 */}
           {combinedResult.issuesByView.front.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary-400" />
+                <span className="w-2 h-2 rounded-full bg-gradient-to-r from-blush-400 to-mist-400" />
                 正面检测
               </h4>
               <div className="space-y-2">
@@ -176,7 +176,7 @@ export function CombinedAnalysisView({
           {combinedResult.issuesByView.side.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                <span className="w-2 h-2 rounded-full bg-gradient-to-r from-mist-400 to-sky-400" />
                 侧面检测
               </h4>
               <div className="space-y-2">
@@ -214,7 +214,7 @@ export function CombinedAnalysisView({
   return (
     <div className="space-y-6">
       {/* 评分概览 */}
-      <div className="bg-white rounded-2xl shadow-card p-6">
+      <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-card p-5 border border-white/40">
         <h3 className="text-base font-medium text-gray-700 mb-4">分析结果</h3>
         <div className="flex items-center gap-6">
           <ScoreRing

@@ -551,145 +551,227 @@ function AppShell() {
   const combinedResult = currentSession?.combinedAnalysis ?? (frontAnalysis || sideAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : null);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-cyan-50">
-      <header className="bg-white/85 shadow-card backdrop-blur-sm">
-        <div className="mx-auto max-w-6xl px-4 py-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="font-serif text-2xl font-semibold text-primary-700">PostureFit</h1>
-              <p className="mt-0.5 text-sm text-primary-500">AI体态矫正运动搭子</p>
-            </div>
-            <div className="flex flex-col gap-2 lg:items-end">
-              <StepIndicator
-                currentStep={currentStep}
-                canEnterStep={step => canEnterStep(currentSession, step)}
-                onStepSelect={moveToStep}
-              />
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-primary-100 lg:w-80">
-                <div className="h-full rounded-full bg-primary-500 transition-all" style={{ width: `${getStepProgress(currentStep)}%` }} />
+    <div className="relative min-h-screen overflow-hidden">
+      {/* 基础梦幻渐变背景 */}
+      <div className="fixed inset-0 bg-dreamy pointer-events-none" />
+
+      {/* 大型渐变浮泡 - 左上 */}
+      <div
+        className="fixed -top-16 -left-16 w-96 h-96 rounded-full pointer-events-none animate-float-slow"
+        style={{
+          background: 'radial-gradient(circle at 40% 40%, rgba(251, 207, 232, 0.6), rgba(233, 213, 255, 0.4), rgba(186, 230, 253, 0.2), transparent 70%)',
+          filter: 'blur(40px)',
+        }}
+      />
+
+      {/* 大型渐变浮泡 - 右上 */}
+      <div
+        className="fixed -top-8 -right-24 w-80 h-80 rounded-full pointer-events-none animate-float-medium"
+        style={{
+          background: 'radial-gradient(circle at 60% 50%, rgba(196, 132, 252, 0.5), rgba(167, 139, 250, 0.3), rgba(244, 114, 182, 0.15), transparent 70%)',
+          filter: 'blur(50px)',
+        }}
+      />
+
+      {/* 中型渐变浮泡 - 左下 */}
+      <div
+        className="fixed -bottom-12 left-1/4 w-72 h-72 rounded-full pointer-events-none animate-float-bubble"
+        style={{
+          background: 'radial-gradient(circle at 50% 50%, rgba(244, 114, 182, 0.35), rgba(251, 207, 232, 0.25), rgba(196, 132, 252, 0.15), transparent 70%)',
+          filter: 'blur(45px)',
+        }}
+      />
+
+      {/* 中型渐变浮泡 - 右下 */}
+      <div
+        className="fixed -bottom-8 right-1/4 w-64 h-64 rounded-full pointer-events-none animate-drift-left"
+        style={{
+          background: 'radial-gradient(circle at 50% 50%, rgba(125, 211, 252, 0.45), rgba(147, 197, 253, 0.3), rgba(196, 132, 252, 0.2), transparent 70%)',
+          filter: 'blur(40px)',
+          animationDelay: '-4s',
+        }}
+      />
+
+      {/* 星光粒子 - 随机分布在页面各处 */}
+      <div className="fixed top-32 left-1/3 w-2 h-2 rounded-full bg-blush-300 pointer-events-none animate-twinkle" style={{ animationDelay: '-0.5s', animationDuration: '6s' }} />
+      <div className="fixed top-48 right-1/4 w-1.5 h-1.5 rounded-full bg-mist-300 pointer-events-none animate-twinkle" style={{ animationDelay: '-2s', animationDuration: '7s' }} />
+      <div className="fixed top-72 left-1/5 w-1 h-1 rounded-full bg-sky-300 pointer-events-none animate-twinkle" style={{ animationDelay: '-4s', animationDuration: '5s' }} />
+      <div className="fixed top-1/3 right-1/6 w-2 h-2 rounded-full bg-blush-200 pointer-events-none animate-twinkle" style={{ animationDelay: '-1s', animationDuration: '9s' }} />
+      <div className="fixed bottom-40 left-1/6 w-1 h-1 rounded-full bg-mist-200 pointer-events-none animate-twinkle" style={{ animationDelay: '-3s', animationDuration: '8s' }} />
+      <div className="fixed bottom-60 right-1/3 w-1.5 h-1.5 rounded-full bg-sky-200 pointer-events-none animate-twinkle" style={{ animationDelay: '-5s', animationDuration: '6.5s' }} />
+      <div className="fixed top-2/3 left-1/2 w-1 h-1 rounded-full bg-blush-300 pointer-events-none animate-twinkle" style={{ animationDelay: '-6s', animationDuration: '7.5s' }} />
+      <div className="fixed top-40 left-3/4 w-2 h-2 rounded-full bg-mist-300 pointer-events-none animate-twinkle" style={{ animationDelay: '-2.5s', animationDuration: '5.5s' }} />
+
+      {/* 微光内层泡 - 漂浮在内容层之下 */}
+      <div
+        className="fixed top-1/4 left-1/2 w-48 h-48 rounded-full pointer-events-none animate-inner-bubble"
+        style={{
+          background: 'radial-gradient(circle at 50% 50%, rgba(251, 207, 232, 0.15), transparent 70%)',
+          filter: 'blur(30px)',
+          animationDelay: '-3s',
+        }}
+      />
+
+      {/* 主内容区域 */}
+      <div className="relative z-10 min-h-screen">
+        {/* 头部导航 */}
+        <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-white/50 shadow-soft">
+          <div className="mx-auto max-w-6xl px-4 py-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-3">
+                {/* Logo 图标 */}
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blush-400 to-mist-400 flex items-center justify-center shadow-glow animate-glow-pulse">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </div>
+                  <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-blush-400/20 to-mist-400/20 blur-sm -z-10" />
+                </div>
+                <div>
+                  <h1 className="font-serif text-2xl font-semibold text-blush-600">PostureFit</h1>
+                  <p className="mt-0.5 text-sm text-mist-500">AI体态矫正运动搭子</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 lg:items-end">
+                <StepIndicator
+                  currentStep={currentStep}
+                  canEnterStep={step => canEnterStep(currentSession, step)}
+                  onStepSelect={moveToStep}
+                />
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-blush-100/50 lg:w-80">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blush-400 via-mist-400 to-sky-300 transition-all duration-500 ease-out"
+                    style={{ width: `${getStepProgress(currentStep)}%` }}
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main
-        className={`mx-auto gap-6 px-4 py-8 ${
-          currentStep === 'chat'
-            ? 'grid max-w-7xl lg:grid-cols-1'
-            : 'grid max-w-6xl lg:grid-cols-[minmax(0,1fr)_300px]'
-        }`}
-      >
-        <section className="min-w-0">
-          {error && (
-            <div className="mb-5 rounded-2xl border border-red-100 bg-white p-4 text-sm leading-6 text-red-600 shadow-card">
-              {error}
-            </div>
-          )}
-
-          {currentStep === 'capture' && (
-            <section className="rounded-2xl bg-white p-5 shadow-card">
-              <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-primary-600">第一步</p>
-                  <h2 className="mt-1 text-2xl font-semibold text-gray-900">拍摄体态照片</h2>
-                </div>
-                <p className="max-w-xl text-sm leading-6 text-gray-500">建议使用双视角，正面和侧面都会进入同一分析管线。</p>
+        {/* 主内容 */}
+        <main
+          className={`relative z-10 mx-auto gap-8 px-4 py-8 ${
+            currentStep === 'chat'
+              ? 'max-w-5xl'
+              : 'max-w-7xl flex flex-col lg:flex-row lg:items-start'
+          }`}
+        >
+          {/* 主内容区 */}
+          <section className={`min-w-0 space-y-6 ${currentStep === 'chat' ? '' : 'lg:flex-1'}`}>
+            {error && (
+              <div className="rounded-2xl border border-red-200/50 bg-gradient-to-br from-red-50/90 to-orange-50/90 backdrop-blur-sm p-4 text-sm leading-6 text-red-600 shadow-soft">
+                {error}
               </div>
-              <CameraCapture
-                onCapture={handleCapture}
-                selectedMode={captureMode}
-                onModeChange={setCaptureMode}
-                onUploadImage={handleUpload}
-                viewSelection={viewSelection}
-                onViewSelectionChange={setViewSelection}
-                currentCaptureView={viewSelection === 'dual' ? currentCaptureView : null}
-                onResetCapture={handleResetCapture}
-                showViewSelection
-              />
-            </section>
-          )}
+            )}
 
-          {currentStep === 'analysis' && (
-            <section className="space-y-6">
-              {isAnalyzing || isModelLoading ? (
-                <div className="mx-auto max-w-lg rounded-2xl bg-white p-4 shadow-card">
-                  <AnalysisLoader message={isModelLoading ? '正在加载AI模型...' : '正在分析体态...'} />
-                </div>
-              ) : combinedResult ? (
-                <>
-                  {currentSession?.viewSelection === 'dual' && photos.length >= 2 ? (
-                    <CombinedAnalysisView
-                      frontAnalysis={frontAnalysis}
-                      sideAnalysis={sideAnalysis}
-                      combinedResult={combinedResult}
-                      showDualViews
-                      frontImageUrl={photos.find(photo => photo.view === 'front')?.imageUrl ?? ''}
-                      sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
-                    />
-                  ) : (
-                    <CombinedAnalysisView
-                      frontAnalysis={frontAnalysis}
-                      sideAnalysis={sideAnalysis}
-                      combinedResult={combinedResult}
-                      showDualViews={false}
-                      frontImageUrl={photos.find(photo => photo.view === 'front')?.imageUrl ?? photos[0]?.imageUrl ?? ''}
-                      sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
-                    />
-                  )}
-
-                  <div className="mx-auto flex max-w-2xl flex-col gap-3">
-                    <button
-                      type="button"
-                      onClick={() => moveToStep('profile')}
-                      className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary-500 px-6 py-4 text-base font-medium text-white transition hover:bg-primary-600"
-                    >
-                      继续选择教练
-                      <ArrowRight className="h-5 w-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleRetry}
-                      className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gray-50 px-6 py-3 font-medium text-gray-600 transition hover:bg-gray-100"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      重新拍摄
-                    </button>
+            {currentStep === 'capture' && (
+              <section className="rounded-2xl bg-white/80 backdrop-blur-md p-5 shadow-soft border border-white/50">
+                <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="text-sm font-medium bg-gradient-to-r from-blush-500 to-mist-500 bg-clip-text text-transparent">第一步</p>
+                    <h2 className="mt-1 text-2xl font-semibold bg-gradient-to-r from-blush-700 to-mist-600 bg-clip-text text-transparent">拍摄体态照片</h2>
                   </div>
-                </>
-              ) : null}
-            </section>
-          )}
+                  <p className="max-w-xl text-sm leading-6 text-mist-600">建议使用双视角，正面和侧面都会进入同一分析管线。</p>
+                </div>
+                <CameraCapture
+                  onCapture={handleCapture}
+                  selectedMode={captureMode}
+                  onModeChange={setCaptureMode}
+                  onUploadImage={handleUpload}
+                  viewSelection={viewSelection}
+                  onViewSelectionChange={setViewSelection}
+                  currentCaptureView={viewSelection === 'dual' ? currentCaptureView : null}
+                  onResetCapture={handleResetCapture}
+                  showViewSelection
+                />
+              </section>
+            )}
 
-          {currentStep === 'profile' && (
-            <ProfileForm
-              initialProfile={currentSession?.profile ?? appState.preferences}
-              onSubmit={handleProfileSubmit}
-              onBack={() => moveToStep('analysis')}
-              isSubmitting={isCoachWorking}
+            {currentStep === 'analysis' && (
+              <section className="space-y-6">
+                {isAnalyzing || isModelLoading ? (
+                  <div className="mx-auto max-w-lg rounded-2xl bg-white/80 backdrop-blur-md p-4 shadow-soft border border-white/50">
+                    <AnalysisLoader message={isModelLoading ? '正在加载AI模型...' : '正在分析体态...'} />
+                  </div>
+                ) : combinedResult ? (
+                  <>
+                    {currentSession?.viewSelection === 'dual' && photos.length >= 2 ? (
+                      <CombinedAnalysisView
+                        frontAnalysis={frontAnalysis}
+                        sideAnalysis={sideAnalysis}
+                        combinedResult={combinedResult}
+                        showDualViews
+                        frontImageUrl={photos.find(photo => photo.view === 'front')?.imageUrl ?? ''}
+                        sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
+                      />
+                    ) : (
+                      <CombinedAnalysisView
+                        frontAnalysis={frontAnalysis}
+                        sideAnalysis={sideAnalysis}
+                        combinedResult={combinedResult}
+                        showDualViews={false}
+                        frontImageUrl={photos.find(photo => photo.view === 'front')?.imageUrl ?? photos[0]?.imageUrl ?? ''}
+                        sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
+                      />
+                    )}
+
+                    <div className="mx-auto flex max-w-2xl flex-col gap-3">
+                      <button
+                        type="button"
+                        onClick={() => moveToStep('profile')}
+                        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blush-500 to-mist-500 px-10 py-4 text-lg font-semibold text-white transition hover:from-blush-600 hover:to-mist-600 shadow-bubble hover:shadow-glow"
+                      >
+                        继续选择教练
+                        <ArrowRight className="h-5 w-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRetry}
+                        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white/80 backdrop-blur-sm border border-blush-100 px-8 py-3.5 text-base font-medium text-blush-600 transition hover:bg-blush-50"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        重新拍摄
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </section>
+            )}
+
+            {currentStep === 'profile' && (
+              <ProfileForm
+                initialProfile={currentSession?.profile ?? appState.preferences}
+                onSubmit={handleProfileSubmit}
+                onBack={() => moveToStep('analysis')}
+                isSubmitting={isCoachWorking}
+              />
+            )}
+
+            {currentStep === 'chat' && currentSession && (
+              <CoachChat
+                messages={currentSession.chatMessages}
+                plan={currentSession.plan}
+                isResponding={isCoachWorking}
+                onFeedback={handleFeedback}
+                onRequestNewPlan={handleRequestNewPlan}
+                onRestart={handleRetry}
+              />
+            )}
+          </section>
+
+          {/* 侧边栏 - 历史记录 */}
+          <div className={`space-y-6 lg:sticky lg:top-24 lg:w-72 lg:shrink-0 ${currentStep === 'chat' ? 'hidden' : ''}`}>
+            <HistoryRail
+              sessions={appState.sessions}
+              currentSessionId={appState.currentSessionId}
+              onSelect={handleSelectHistory}
             />
-          )}
-
-          {currentStep === 'chat' && currentSession && (
-            <CoachChat
-              messages={currentSession.chatMessages}
-              plan={currentSession.plan}
-              isResponding={isCoachWorking}
-              onFeedback={handleFeedback}
-              onRequestNewPlan={handleRequestNewPlan}
-              onRestart={handleRetry}
-            />
-          )}
-        </section>
-
-        <div className={`space-y-6 lg:sticky lg:top-6 lg:self-start ${currentStep === 'chat' ? 'hidden' : ''}`}>
-          <HistoryRail
-            sessions={appState.sessions}
-            currentSessionId={appState.currentSessionId}
-            onSelect={handleSelectHistory}
-          />
-        </div>
-      </main>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
