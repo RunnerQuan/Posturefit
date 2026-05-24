@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, ExternalLink, RefreshCw, RotateCcw, SendHorizontal, Timer, UserRound } from 'lucide-react';
-import { formatDate, formatDuration } from '../../lib/time';
-import type { CheckInFeedback, CoachMessage, TrainingPlan } from '../../types';
+import { formatDuration } from '../../lib/time';
+import type { CheckInFeedback, CoachMessage, Exercise, TrainingPlan } from '../../types';
 import { MarkdownMessage } from './MarkdownMessage';
-import { stripExerciseBlock } from './exerciseBlock';
+import { extractExercisesFromMessage, stripExerciseBlock } from './exerciseBlock';
 
 type CoachChatProps = {
   messages: CoachMessage[];
@@ -18,6 +18,39 @@ const FEEDBACK_LABELS: Record<CheckInFeedback, string> = {
   completed: '做完了',
   tooTired: '太累了',
 };
+
+function ExerciseCards({ exercises }: { exercises: Exercise[] }) {
+  if (exercises.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-5 grid gap-3 rounded-3xl bg-primary-50/50 p-3 md:grid-cols-3">
+      {exercises.map((exercise, index) => (
+        <article key={`${exercise.id}-${index}`} className="rounded-2xl border border-white bg-white/85 p-4 shadow-sm">
+          <p className="text-xs font-semibold text-primary-600">动作 {index + 1}</p>
+          <h3 className="mt-1 text-base font-semibold leading-6 text-gray-900">{exercise.name}</h3>
+          <p className="mt-2 line-clamp-3 text-xs leading-5 text-gray-600">{exercise.description}</p>
+          <div className="mt-4 flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700">
+              <Timer className="h-3.5 w-3.5" />
+              {formatDuration(exercise.durationSeconds)}
+            </span>
+            <a
+              href={exercise.bilibiliSearchUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:text-primary-700"
+            >
+              视频
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
 
 export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestNewPlan, onRestart }: CoachChatProps) {
   const [feedbackText, setFeedbackText] = useState('');
@@ -37,8 +70,8 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
   }, [messages, isResponding]);
 
   return (
-    <section className="mx-auto w-full max-w-5xl overflow-visible rounded-[32px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md">
-      <div className="flex items-center justify-between gap-4 border-b border-blush-100/50 px-5 py-3">
+    <section className="mx-auto w-full max-w-6xl overflow-visible rounded-[32px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md">
+      <div className="flex items-center justify-between gap-4 border-b border-blush-100/50 px-6 py-4">
         <div>
           <p className="text-sm font-semibold text-blush-500">AI 陪练</p>
           <h2 className="mt-1 text-2xl font-semibold text-blush-700">
@@ -55,33 +88,6 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
         </button>
       </div>
 
-      {plan && (
-        <div className="grid gap-3 border-b border-blush-100/50 bg-gradient-to-r from-blush-50/60 via-white/80 to-mist-50/60 px-5 py-3 md:grid-cols-3">
-          {plan.exercises.map((exercise, index) => (
-            <article key={exercise.id} className="rounded-2xl border border-white/40 bg-white/60 backdrop-blur-sm p-3 shadow-soft">
-              <p className="text-xs font-semibold text-blush-500">动作 {index + 1}</p>
-              <h3 className="mt-1 text-base font-semibold text-blush-700">{exercise.name}</h3>
-              <p className="mt-2 line-clamp-2 text-xs leading-5 text-mist-600">{exercise.description}</p>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1 rounded-full bg-blush-50 px-2.5 py-1 text-xs font-medium text-blush-600 border border-blush-100">
-                  <Timer className="h-3.5 w-3.5" />
-                  {formatDuration(exercise.durationSeconds)}
-                </span>
-                <a
-                  href={exercise.bilibiliSearchUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 rounded-full bg-mist-50 px-2.5 py-1 text-xs font-medium text-mist-600 transition hover:text-blush-500 border border-mist-100"
-                >
-                  视频
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-
       <div
         ref={scrollContainerRef}
         className="scroll-smooth bg-white/70 backdrop-blur-sm border border-white/40 px-5 py-5"
@@ -90,18 +96,19 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
         {messages.map(message => {
           const isUser = message.role === 'user';
           const isStreamingDraft = !isUser && !message.content && isResponding;
+          const messageExercises = isUser ? [] : extractExercisesFromMessage(message.content, plan?.primaryIssue ?? null);
           return (
-            <div key={message.id} className={`mx-auto flex w-full max-w-3xl gap-3 py-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
+            <div key={message.id} className={`mx-auto flex w-full max-w-4xl gap-4 py-5 ${isUser ? 'justify-end' : 'justify-start'}`}>
               {!isUser && (
                 <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blush-200 to-mist-200 text-blush-600">
                   <Bot className="h-4 w-4" />
                 </div>
               )}
               <div
-                className={`text-base leading-8 ${
+                className={`text-base leading-7 ${
                   isUser
-                    ? 'max-w-[72%] rounded-[24px] bg-gradient-to-br from-blush-400 to-blush-500 px-5 py-3 text-white shadow-bubble'
-                    : 'max-w-[min(760px,calc(100%-3rem))] text-blush-800'
+                    ? 'chat-liquid-bubble chat-liquid-bubble-user max-w-[72%] rounded-[26px] px-5 py-3 text-gray-950'
+                    : 'chat-liquid-bubble max-w-[min(900px,calc(100%-3rem))] rounded-[30px] px-5 py-4 text-gray-900'
                 }`}
               >
                 {isStreamingDraft ? (
@@ -114,14 +121,18 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
                     {isUser ? (
                       <p className="whitespace-pre-line break-words">{message.content}</p>
                     ) : (
-                      <MarkdownMessage content={stripExerciseBlock(message.content)} />
+                      <>
+                        <MarkdownMessage content={stripExerciseBlock(message.content)} />
+                        {!isResponding || messages[messages.length - 1]?.id !== message.id ? (
+                          <ExerciseCards exercises={messageExercises} />
+                        ) : null}
+                      </>
                     )}
                     {!isUser && isResponding && messages[messages.length - 1]?.id === message.id && (
                       <span className="ml-1 inline-block h-4 w-1 animate-pulse rounded-full bg-gradient-to-r from-blush-400 to-mist-400 align-[-2px]" />
                     )}
                   </div>
                 )}
-                <p className={`mt-2 text-xs ${isUser ? 'text-white/70' : 'text-gray-400'}`}>{formatDate(message.createdAt)}</p>
               </div>
               {isUser && (
                 <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
@@ -144,8 +155,8 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
           submitFeedback('completed', feedbackText);
         }}
       >
-        <div className="mx-auto w-full max-w-3xl">
-          <div className="mb-3 flex flex-wrap gap-3">
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="mb-3 flex flex-wrap gap-2">
             {(Object.keys(FEEDBACK_LABELS) as CheckInFeedback[]).map(feedback => (
               <button
                 key={feedback}

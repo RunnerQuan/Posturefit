@@ -48,7 +48,7 @@ function normalizeExercise(raw: RawExercise, index: number, primaryIssue: Postur
   }
 
   return {
-    id: raw.id?.trim() || `coze-exercise-${index + 1}-${generateId()}`,
+    id: raw.id?.trim() || `coze-exercise-${index + 1}-${name}`,
     issueType: raw.issueType ?? primaryIssue ?? 'roundedShoulder',
     name,
     description: raw.description?.trim() || '跟随 AI 教练提示完成动作，过程中保持呼吸平稳。',
@@ -57,37 +57,43 @@ function normalizeExercise(raw: RawExercise, index: number, primaryIssue: Postur
   };
 }
 
-export function extractTrainingPlanFromMessage(
+export function extractExercisesFromMessage(
   content: string,
-  sessionId: string,
-  primaryIssue: PostureIssueType | null
-): TrainingPlan | null {
+  primaryIssue: PostureIssueType | null = null
+): Exercise[] {
   const match = content.match(EXERCISE_BLOCK_RE);
   if (!match?.[1]) {
-    return null;
+    return [];
   }
 
   try {
     const parsed = JSON.parse(match[1].trim()) as RawExerciseBlock;
     const rawExercises = Array.isArray(parsed) ? parsed : parsed.exercises ?? [];
-    const exercises = rawExercises
+    return rawExercises
       .slice(0, 3)
       .map((exercise, index) => normalizeExercise(exercise, index, primaryIssue))
       .filter((exercise): exercise is Exercise => Boolean(exercise));
-
-    if (exercises.length === 0) {
-      return null;
-    }
-
-    return {
-      id: `plan-${generateId()}`,
-      sessionId,
-      primaryIssue,
-      exercises,
-      createdAt: getCurrentISOString(),
-      intensity: 'medium',
-    };
   } catch {
+    return [];
+  }
+}
+
+export function extractTrainingPlanFromMessage(
+  content: string,
+  sessionId: string,
+  primaryIssue: PostureIssueType | null
+): TrainingPlan | null {
+  const exercises = extractExercisesFromMessage(content, primaryIssue);
+  if (exercises.length === 0) {
     return null;
   }
+
+  return {
+    id: `plan-${generateId()}`,
+    sessionId,
+    primaryIssue,
+    exercises,
+    createdAt: getCurrentISOString(),
+    intensity: 'medium',
+  };
 }

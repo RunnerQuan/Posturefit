@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
-  const cozeEndpoint = env.VITE_COZE_ENDPOINT || 'https://673q2bg4qj.coze.site/stream_run'
+  const cozeEndpoint = env.VITE_COZE_ENDPOINT || 'https://8f9jzqp2mk.coze.site/stream_run'
   const cozeUrl = new URL(cozeEndpoint)
 
   return {

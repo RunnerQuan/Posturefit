@@ -226,6 +226,8 @@ export type CoachPlanRequest = {
   analysis: PostureAnalysisResult;
   profile: UserProfile;
   sessionId: string;
+  captureMode?: CaptureMode;
+  viewSelection?: ViewSelection;
   currentExerciseNames?: string[];
   completedExerciseNames?: string[];
   generatedExerciseNames?: string[];
@@ -239,6 +241,8 @@ export type CoachFeedbackRequest = {
   feedback: CheckInFeedback | string;
   feedbackText?: string;
   previousMessages: CoachMessage[];
+  captureMode?: CaptureMode;
+  viewSelection?: ViewSelection;
   currentExerciseNames?: string[];
   completedExerciseNames?: string[];
   generatedExerciseNames?: string[];
