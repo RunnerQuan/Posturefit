@@ -66,13 +66,26 @@ function getIssueLabel(issue: PostureAnalysisResult['primaryIssue']): string {
   return issue ? ISSUE_LABELS[issue] : '体态维护';
 }
 
-function getUserFeedbackMessage(feedback: CheckInFeedback): CoachMessage {
+function getUserFeedbackMessage(feedback: CheckInFeedback, feedbackText?: string): CoachMessage {
   return {
     id: generateId(),
     role: 'user',
-    content: feedback === 'completed' ? '做完了' : '太累了',
+    content: feedbackText?.trim() || (feedback === 'completed' ? '做完了' : '太累了'),
     createdAt: getCurrentISOString(),
   };
+}
+
+function getCoachChannelLabel(session: PostureSession | null): string {
+  const latestAssistant = [...(session?.chatMessages ?? [])].reverse().find(message => message.role === 'assistant');
+  if (latestAssistant?.source === 'coze') {
+    return 'Coze 实时连接';
+  }
+  if (latestAssistant?.source === 'mock') {
+    return latestAssistant.fallbackReason
+      ? `Mock 回退：${latestAssistant.fallbackReason}`
+      : 'Mock 演示';
+  }
+  return import.meta.env.VITE_COZE_ENABLED === 'true' ? 'Coze 已配置，等待请求' : 'Mock 演示';
 }
 
 const coachClient = createCoachClient();
@@ -317,6 +330,9 @@ function AppShell() {
       try {
         const plan = generateTrainingPlan(currentSession.id, planSource, profile.bodyState);
         const coachMessage = await coachClient.generatePlanMessage({ analysis, profile, plan });
+        if (coachMessage.fallbackReason) {
+          setError(`Coze 教练连接失败，已临时回退 Mock：${coachMessage.fallbackReason}`);
+        }
         const nextSession = updateSession(currentSession, {
           profile,
           plan,
@@ -335,27 +351,56 @@ function AppShell() {
   );
 
   const handleFeedback = useCallback(
-    async (feedback: CheckInFeedback) => {
+    async (feedback: CheckInFeedback, feedbackText?: string) => {
       if (!currentSession?.profile || !currentSession.plan) {
         return;
       }
 
       setIsCoachWorking(true);
       setError(null);
-      const userMessage = getUserFeedbackMessage(feedback);
+      const userMessage = getUserFeedbackMessage(feedback, feedbackText);
       const messagesWithUser = [...currentSession.chatMessages, userMessage];
-      const sessionWithUser = updateSession(currentSession, { chatMessages: messagesWithUser, step: 'chat' });
-      persistSession(sessionWithUser);
+      const assistantDraft: CoachMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: '',
+        createdAt: getCurrentISOString(),
+      };
+      const sessionWithDraft = updateSession(currentSession, {
+        chatMessages: [...messagesWithUser, assistantDraft],
+        step: 'chat',
+      });
+      persistSession(sessionWithDraft);
 
       try {
-        const coachMessage = await coachClient.respondToFeedback({
+        const request = {
           profile: currentSession.profile,
           plan: currentSession.plan,
+          analysis: getSingleAnalysis(currentSession) ?? undefined,
           feedback,
+          feedbackText,
           previousMessages: messagesWithUser,
-        });
-        persistSession(updateSession(sessionWithUser, { chatMessages: [...messagesWithUser, coachMessage] }));
+        };
+        let streamedContent = '';
+        const updateAssistantDraft = (content: string) => {
+          persistSession(updateSession(sessionWithDraft, {
+            chatMessages: [...messagesWithUser, { ...assistantDraft, content }],
+          }));
+        };
+        const coachMessage = coachClient.respondToFeedbackStream
+          ? await coachClient.respondToFeedbackStream(request, delta => {
+            streamedContent += delta;
+            updateAssistantDraft(streamedContent);
+          })
+          : await coachClient.respondToFeedback(request);
+        persistSession(updateSession(sessionWithDraft, {
+          chatMessages: [...messagesWithUser, { ...coachMessage, id: assistantDraft.id }],
+        }));
+        if (coachMessage.fallbackReason) {
+          setError(`Coze 教练连接失败，已临时回退 Mock：${coachMessage.fallbackReason}`);
+        }
       } catch (err) {
+        persistSession(updateSession(sessionWithDraft, { chatMessages: messagesWithUser }));
         setError(err instanceof Error ? err.message : '教练反馈失败');
       } finally {
         setIsCoachWorking(false);
@@ -547,7 +592,7 @@ function AppShell() {
               <p>步骤：{STEP_ORDER.indexOf(currentStep) + 1} / {STEP_ORDER.length}</p>
               <p>主要问题：{getIssueLabel(primaryIssue)}</p>
               {typeof score === 'number' && <p>体态评分：{score}</p>}
-              <p>教练通道：{import.meta.env.VITE_COZE_ENABLED === 'true' ? 'Coze优先，失败回退Mock' : 'Mock演示'}</p>
+              <p>教练通道：{getCoachChannelLabel(currentSession)}</p>
             </div>
           </section>
 

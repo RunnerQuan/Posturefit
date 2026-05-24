@@ -142,6 +142,8 @@ export type CoachMessage = {
   role: CoachMessageRole;
   content: string;
   createdAt: string;
+  source?: 'coze' | 'mock';
+  fallbackReason?: string;
 };
 
 export type CoachPlanRequest = {
@@ -153,13 +155,19 @@ export type CoachPlanRequest = {
 export type CoachFeedbackRequest = {
   profile: UserProfile;
   plan: TrainingPlan;
+  analysis?: PostureAnalysisResult;
   feedback: CheckInFeedback;
+  feedbackText?: string;
   previousMessages: CoachMessage[];
 };
 
 export interface CoachClient {
   generatePlanMessage(request: CoachPlanRequest): Promise<CoachMessage>;
   respondToFeedback(request: CoachFeedbackRequest): Promise<CoachMessage>;
+  respondToFeedbackStream?(
+    request: CoachFeedbackRequest,
+    onDelta: (delta: string) => void
+  ): Promise<CoachMessage>;
 }
 
 // Session types

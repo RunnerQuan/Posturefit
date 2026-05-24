@@ -36,6 +36,7 @@ export class MockCoachClient implements CoachClient {
       role: 'assistant',
       content: `${intro}\n\n${planText}`,
       createdAt: getCurrentISOString(),
+      source: 'mock',
     };
   }
 
@@ -54,6 +55,7 @@ export class MockCoachClient implements CoachClient {
       role: 'assistant',
       content: response,
       createdAt: getCurrentISOString(),
+      source: 'mock',
     };
   }
 }
