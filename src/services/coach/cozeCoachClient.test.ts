@@ -120,6 +120,7 @@ describe('CozeCoachClient', () => {
     expect(prompt.shoulderImbalance).toBeUndefined();
     expect(prompt.primaryIssue).toBe('anteriorTilt');
     expect(prompt.score).toBe(80);
+    expect(prompt.coachName).toBe('爱可');
     expect(prompt.captureMode).toBe('halfBody');
     expect(prompt.viewSelection).toBe('side');
     expect(prompt.issues).toEqual([
