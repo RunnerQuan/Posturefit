@@ -106,10 +106,8 @@ export function LandingPage() {
 
       {/* Logo - 左上角 */}
       <div className="fixed left-6 top-6 z-20 flex items-center gap-3 sm:left-8 sm:top-7">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blush-400 to-mist-400 shadow-[0_4px_20px_rgba(236,72,153,0.3)] sm:h-14 sm:w-14">
-          <svg className="h-6 w-6 text-white sm:h-7 sm:w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-          </svg>
+        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white/85 shadow-[0_4px_20px_rgba(236,72,153,0.22)] backdrop-blur-md sm:h-14 sm:w-14">
+          <img src="/logo.png" alt="" className="h-full w-full object-contain" />
         </div>
         <span className="font-serif text-2xl font-semibold text-blush-600 drop-shadow-[0_1px_8px_rgba(255,255,255,0.35)]">PostureFit</span>
       </div>
