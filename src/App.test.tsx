@@ -81,6 +81,7 @@ const pose: PoseKeypoint33[] = [
 describe('App frontend B flow', () => {
   beforeEach(() => {
     localStorage.clear();
+    window.history.pushState(null, '', '/');
     mockUsePoseDetection.mockReset();
     mockUsePoseDetection.mockReturnValue({
       isModelLoading: false,
@@ -96,6 +97,7 @@ describe('App frontend B flow', () => {
   it('runs upload, analysis, profile, chat plan, and check-in feedback', async () => {
     render(<App />);
 
+    fireEvent.click(screen.getByRole('button', { name: /开始你的体态之旅/ }));
     fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
 
     await screen.findByText('分析结果');
@@ -120,6 +122,7 @@ describe('App frontend B flow', () => {
   it('persists a session into localStorage after analysis', async () => {
     render(<App />);
 
+    fireEvent.click(screen.getByRole('button', { name: /开始你的体态之旅/ }));
     fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
     await screen.findByText('分析结果');
 
