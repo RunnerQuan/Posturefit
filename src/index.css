@@ -69,6 +69,23 @@
       inset 0 -1px 1px rgba(190, 24, 93, 0.1),
       0 18px 44px rgba(190, 24, 93, 0.12);
   }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #f9a8d4, #d8b4fe);
+    border-radius: 2px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #f472b6, #c084fc);
+  }
 }
 
 :root {

@@ -1,6 +1,7 @@
 import { useCameraAccess } from './useCameraAccess';
 import { Camera, Upload, AlertCircle, CheckCircle, RotateCcw } from 'lucide-react';
 import type { CaptureMode, ViewSelection, PoseView } from '../../types';
+import aiCoachScanImage from '../../../assets/ai_coach_scan.png';
 
 interface CameraCaptureProps {
   onCapture: (imageDataUrl: string, view: PoseView) => void;
@@ -129,9 +130,15 @@ export function CameraCapture({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="relative -mt-2 flex h-full flex-col">
+      <img
+        src={aiCoachScanImage}
+        alt="AI 扫描教练"
+        className="pointer-events-none absolute right-14 -top-14 hidden max-h-56 w-auto object-contain md:block lg:right-20 lg:-top-16 lg:max-h-72"
+      />
+
       {showViewSelection && (
-        <div className="mb-4">
+        <div className="mb-3 md:pr-72 lg:pr-96">
           <label className="block text-sm font-medium text-gray-600 mb-2">
             拍摄视角
           </label>
@@ -153,7 +160,7 @@ export function CameraCapture({
         </div>
       )}
 
-      <div className="mb-4">
+      <div className="mb-3 md:pr-72 lg:pr-96">
         <label className="block text-sm font-medium text-gray-600 mb-2">
           拍摄模式
         </label>

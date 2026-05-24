@@ -8,23 +8,24 @@ import { CameraCapture } from './features/camera';
 import { analyzePose, combineAnalyses, CombinedAnalysisView } from './features/analysis';
 import { usePoseDetection, validateKeypointsForMode, KEYPOINT_LABELS_33, MODE_MIN_KEYPOINTS } from './features/pose';
 import { CoachChat } from './features/chat/CoachChat';
-import { HistoryRail } from './features/history/HistoryRail';
+import { SessionSummaryPanel } from './features/chat/SessionSummaryPanel';
+import { SessionSidebar } from './features/history/SessionSidebar';
 import { ProfileForm } from './features/onboarding/ProfileForm';
 import { extractTrainingPlanFromMessage } from './features/chat/exerciseBlock';
 import { createCoachClient } from './services/coach';
 import { createSession, loadAppState, saveAppState, updateSession } from './services/storage/sessionStorage';
 import { generateId } from './lib/ids';
 import { getCurrentISOString } from './lib/time';
+import { getSessionDisplayAnalysis, getSessionSingleAnalysis } from './lib/sessionAnalysis';
 import { LandingPage } from './features/landing/LandingPage';
+import logoImage from '../assets/logo.png';
 import type {
   AppState,
   CaptureMode,
   CapturedPhoto,
   CheckInFeedback,
   CoachMessage,
-  CombinedAnalysisResult,
   PoseView,
-  PostureAnalysisResult,
   PostureSession,
   PostureSessionStep,
   UserProfile,
@@ -46,27 +47,6 @@ function getAllowedViews(viewSelection: ViewSelection): PoseView[] {
 function filterPhotosForViewSelection(photos: CapturedPhoto[], viewSelection: ViewSelection): CapturedPhoto[] {
   const allowedViews = getAllowedViews(viewSelection);
   return photos.filter(photo => allowedViews.includes(photo.view));
-}
-
-function getSingleAnalysis(session: PostureSession | null): PostureAnalysisResult | null {
-  if (!session) {
-    return null;
-  }
-  const allowedViews = getAllowedViews(session.viewSelection);
-  if (session.analysis && allowedViews.includes(session.analysis.view)) {
-    return session.analysis;
-  }
-  return filterPhotosForViewSelection(session.photos, session.viewSelection).find(photo => photo.analysis)?.analysis ?? null;
-}
-
-function getDisplayAnalysis(session: PostureSession | null): PostureAnalysisResult | CombinedAnalysisResult | null {
-  if (!session) {
-    return null;
-  }
-  if (session.viewSelection === 'dual' && session.combinedAnalysis) {
-    return session.combinedAnalysis;
-  }
-  return getSingleAnalysis(session);
 }
 
 function shouldStartAnalysis(session: PostureSession | null): boolean {
@@ -99,6 +79,18 @@ function uniqueNames(names: string[]): string[] {
 
 function getExerciseNames(session: PostureSession): string[] {
   return session.plan?.exercises.map(exercise => exercise.name) ?? session.currentExerciseNames ?? [];
+}
+
+function isCaptureDraftSession(session: PostureSession | null): session is PostureSession {
+  return Boolean(
+    session &&
+    session.step === 'capture' &&
+    !session.analysis &&
+    !session.combinedAnalysis &&
+    !session.profile &&
+    !session.plan &&
+    session.chatMessages.length === 0
+  );
 }
 
 const coachClient = createCoachClient();
@@ -207,7 +199,9 @@ function AppShell() {
         imageUrl: dataUrl,
         capturedAt: getCurrentISOString(),
       };
-      const baseSession = currentSession ?? createSession(sourceType, captureMode);
+      const baseSession = isCaptureDraftSession(currentSession)
+        ? currentSession
+        : createSession(sourceType, captureMode);
       const photos = viewSelection === 'dual'
         ? [...filterPhotosForViewSelection(baseSession.photos, viewSelection).filter(item => item.view !== view), photo]
         : [photo];
@@ -292,16 +286,10 @@ function AppShell() {
           captureMode: session.captureMode,
         });
         const photos = scopedPhotos.map(item => (item.id === photo.id ? { ...item, analysis: result } : item));
-        const analyzedPhotos = photos.filter(item => item.analysis);
         const frontAnalysis = photos.find(item => item.view === 'front')?.analysis ?? null;
         const sideAnalysis = photos.find(item => item.view === 'side')?.analysis ?? null;
-        const hasAllRequiredAnalysis =
-          session.viewSelection === 'dual'
-            ? Boolean(frontAnalysis || sideAnalysis) && analyzedPhotos.length >= Math.min(2, photos.length)
-            : analyzedPhotos.length >= 1;
-        const combinedAnalysis = session.viewSelection === 'dual' && hasAllRequiredAnalysis
-          ? combineAnalyses(frontAnalysis, sideAnalysis)
-          : undefined;
+        const hasCompleteDualAnalysis = session.viewSelection === 'dual' && Boolean(frontAnalysis && sideAnalysis);
+        const combinedAnalysis = hasCompleteDualAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : undefined;
         const singleAnalysis = result;
 
         persistSession(updateSession(session, {
@@ -338,8 +326,8 @@ function AppShell() {
       if (!currentSession) {
         return;
       }
-      const analysis = getSingleAnalysis(currentSession);
-      const planSource = getDisplayAnalysis(currentSession);
+      const analysis = getSessionSingleAnalysis(currentSession);
+      const planSource = getSessionDisplayAnalysis(currentSession);
       if (!analysis || !planSource) {
         return;
       }
@@ -418,8 +406,8 @@ function AppShell() {
       if (!currentSession?.profile) {
         return;
       }
-      const analysis = getSingleAnalysis(currentSession);
-      const planSource = getDisplayAnalysis(currentSession);
+      const analysis = getSessionSingleAnalysis(currentSession);
+      const planSource = getSessionDisplayAnalysis(currentSession);
       if (!analysis || !planSource) {
         return;
       }
@@ -525,7 +513,7 @@ function AppShell() {
           profile: currentSession.profile,
           plan: currentSession.plan,
           sessionId: currentSession.id,
-          analysis: getSingleAnalysis(currentSession) ?? undefined,
+          analysis: getSessionSingleAnalysis(currentSession) ?? undefined,
           feedback,
           feedbackText,
           previousMessages: messagesWithUser,
@@ -583,9 +571,8 @@ function AppShell() {
   const photos = currentSession ? filterPhotosForViewSelection(currentSession.photos, currentSession.viewSelection) : [];
   const frontAnalysis = photos.find(photo => photo.view === 'front')?.analysis ?? null;
   const sideAnalysis = photos.find(photo => photo.view === 'side')?.analysis ?? null;
-  const combinedResult = currentSession?.viewSelection === 'dual'
-    ? currentSession.combinedAnalysis ?? (frontAnalysis || sideAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : null)
-    : (frontAnalysis || sideAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : null);
+  const combinedResult = currentSession?.combinedAnalysis ?? (frontAnalysis && sideAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : null);
+  const displayAnalysis = getSessionDisplayAnalysis(currentSession);
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -655,21 +642,23 @@ function AppShell() {
         <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-white/50 shadow-soft">
           <div className="mx-auto max-w-6xl px-4 py-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-3">
-                {/* Logo 图标 */}
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="flex cursor-pointer items-center gap-3 rounded-2xl text-left transition hover:opacity-85 focus:outline-none focus-visible:ring-4 focus-visible:ring-blush-100"
+                aria-label="返回首页"
+              >
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blush-400 to-mist-400 flex items-center justify-center shadow-glow animate-glow-pulse">
-                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
+                  <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-glow animate-glow-pulse">
+                    <img src={logoImage} alt="" className="h-12 w-12 object-contain" />
                   </div>
-                  <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-blush-400/20 to-mist-400/20 blur-sm -z-10" />
+                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-blush-400/20 to-mist-400/20 blur-sm -z-10" />
                 </div>
                 <div>
-                  <h1 className="font-serif text-2xl font-semibold text-blush-600">PostureFit</h1>
-                  <p className="mt-0.5 text-sm text-mist-500">AI体态矫正运动搭子</p>
+                  <h1 className="font-serif text-[1.7rem] font-semibold leading-none text-blush-600">PostureFit</h1>
+                  <p className="mt-1 text-[0.95rem] leading-none text-mist-500">AI体态矫正运动教练</p>
                 </div>
-              </div>
+              </button>
 
               <div className="flex flex-col gap-2 lg:items-end">
                 <StepIndicator
@@ -690,14 +679,22 @@ function AppShell() {
 
         {/* 主内容 */}
         <main
-          className={`relative z-10 mx-auto gap-8 px-4 py-8 ${
+          className={`relative z-10 mx-auto gap-6 px-4 ${
             currentStep === 'chat'
-              ? 'max-w-5xl'
-              : 'max-w-7xl flex flex-col lg:flex-row lg:items-start'
+              ? 'grid w-full max-w-none py-4 lg:grid-cols-[300px_minmax(0,1fr)_340px] lg:items-start'
+              : 'max-w-5xl py-8'
           }`}
         >
+          {currentStep === 'chat' && currentSession && (
+            <SessionSidebar
+              sessions={appState.sessions}
+              currentSessionId={appState.currentSessionId}
+              onSelect={handleSelectHistory}
+            />
+          )}
+
           {/* 主内容区 */}
-          <section className={`min-w-0 space-y-6 ${currentStep === 'chat' ? '' : 'lg:flex-1'}`}>
+          <section className="min-w-0 space-y-6">
             {error && (
               <div className="rounded-2xl border border-red-200/50 bg-gradient-to-br from-red-50/90 to-orange-50/90 backdrop-blur-sm p-4 text-sm leading-6 text-red-600 shadow-soft">
                 {error}
@@ -705,13 +702,9 @@ function AppShell() {
             )}
 
             {currentStep === 'capture' && (
-              <section className="rounded-2xl bg-white/80 backdrop-blur-md p-5 shadow-soft border border-white/50">
-                <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                  <div>
-                    <p className="text-sm font-medium bg-gradient-to-r from-blush-500 to-mist-500 bg-clip-text text-transparent">第一步</p>
-                    <h2 className="mt-1 text-2xl font-semibold bg-gradient-to-r from-blush-700 to-mist-600 bg-clip-text text-transparent">拍摄体态照片</h2>
-                  </div>
-                  <p className="max-w-xl text-sm leading-6 text-mist-600">建议使用双视角，正面和侧面都会进入同一分析管线。</p>
+              <section className="rounded-2xl bg-white/80 backdrop-blur-md px-5 pb-5 pt-3 shadow-soft border border-white/50">
+                <div className="mb-3">
+                  <h2 className="text-2xl font-semibold bg-gradient-to-r from-blush-700 to-mist-600 bg-clip-text text-transparent">拍摄体态照片</h2>
                 </div>
                 <CameraCapture
                   onCapture={handleCapture}
@@ -733,9 +726,9 @@ function AppShell() {
                   <div className="mx-auto max-w-lg rounded-2xl bg-white/80 backdrop-blur-md p-4 shadow-soft border border-white/50">
                     <AnalysisLoader message={isModelLoading ? '正在加载AI模型...' : '正在分析体态...'} />
                   </div>
-                ) : combinedResult ? (
+                ) : displayAnalysis ? (
                   <>
-                    {currentSession?.viewSelection === 'dual' && photos.length >= 2 ? (
+                    {currentSession?.viewSelection === 'dual' && combinedResult ? (
                       <CombinedAnalysisView
                         frontAnalysis={frontAnalysis}
                         sideAnalysis={sideAnalysis}
@@ -794,19 +787,13 @@ function AppShell() {
                 isResponding={isCoachWorking}
                 onFeedback={handleFeedback}
                 onRequestNewPlan={handleRequestNewPlan}
-                onRestart={handleRetry}
               />
             )}
           </section>
 
-          {/* 侧边栏 - 历史记录 */}
-          <div className={`space-y-6 lg:sticky lg:top-24 lg:w-72 lg:shrink-0 ${currentStep === 'chat' ? 'hidden' : ''}`}>
-            <HistoryRail
-              sessions={appState.sessions}
-              currentSessionId={appState.currentSessionId}
-              onSelect={handleSelectHistory}
-            />
-          </div>
+          {currentStep === 'chat' && currentSession && (
+            <SessionSummaryPanel session={currentSession} onRestart={handleRetry} />
+          )}
         </main>
       </div>
     </div>

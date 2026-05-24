@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, ExternalLink, RefreshCw, RotateCcw, SendHorizontal, Timer, UserRound } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Flame, RefreshCw, SendHorizontal, Timer } from 'lucide-react';
 import { formatDuration } from '../../lib/time';
+import coachAvatar from '../../../assets/coach_profile_photo.png';
+import userAvatar from '../../../assets/user_profile_photo.png';
 import type { CheckInFeedback, CoachMessage, Exercise, TrainingPlan } from '../../types';
 import { MarkdownMessage } from './MarkdownMessage';
 import { extractExercisesFromMessage, stripExerciseBlock } from './exerciseBlock';
@@ -11,13 +13,14 @@ type CoachChatProps = {
   isResponding: boolean;
   onFeedback: (feedback: CheckInFeedback, feedbackText?: string) => void;
   onRequestNewPlan: () => void;
-  onRestart: () => void;
 };
 
 const FEEDBACK_LABELS: Record<CheckInFeedback, string> = {
   completed: '做完了',
   tooTired: '太累了',
 };
+
+const AVATAR_SIZE_CLASS = 'h-14 w-14';
 
 function ExerciseCards({ exercises }: { exercises: Exercise[] }) {
   if (exercises.length === 0) {
@@ -52,7 +55,7 @@ function ExerciseCards({ exercises }: { exercises: Exercise[] }) {
   );
 }
 
-export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestNewPlan, onRestart }: CoachChatProps) {
+export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestNewPlan }: CoachChatProps) {
   const [feedbackText, setFeedbackText] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -70,27 +73,10 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
   }, [messages, isResponding]);
 
   return (
-    <section className="mx-auto w-full max-w-6xl overflow-visible rounded-[32px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md">
-      <div className="flex items-center justify-between gap-4 border-b border-blush-100/50 px-6 py-4">
-        <div>
-          <p className="text-sm font-semibold text-blush-500">AI 陪练</p>
-          <h2 className="mt-1 text-2xl font-semibold text-blush-700">
-            {plan ? `今天完成 ${plan.exercises.length} 个动作了吗？` : 'AI 教练正在生成今日训练'}
-          </h2>
-        </div>
-        <button
-          type="button"
-          onClick={onRestart}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-blush-50 px-6 py-2.5 text-base font-medium text-blush-600 transition hover:bg-blush-100 border border-blush-100"
-        >
-          <RotateCcw className="h-4 w-4" />
-          重新评估
-        </button>
-      </div>
-
+    <section className="mx-auto flex h-[calc(100vh-10.5rem)] min-h-[600px] w-full flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md">
       <div
         ref={scrollContainerRef}
-        className="scroll-smooth bg-white/70 backdrop-blur-sm border border-white/40 px-5 py-5"
+        className="min-h-0 flex-1 overflow-y-auto scroll-smooth border border-white/40 bg-white/70 px-5 py-5 backdrop-blur-sm custom-scrollbar"
         aria-live="polite"
       >
         {messages.map(message => {
@@ -100,8 +86,8 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
           return (
             <div key={message.id} className={`mx-auto flex w-full max-w-4xl gap-4 py-5 ${isUser ? 'justify-end' : 'justify-start'}`}>
               {!isUser && (
-                <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blush-200 to-mist-200 text-blush-600">
-                  <Bot className="h-4 w-4" />
+                <div className={`mt-1 ${AVATAR_SIZE_CLASS} shrink-0 overflow-hidden rounded-full border border-white/80 bg-blush-50 shadow-sm`}>
+                  <img src={coachAvatar} alt="" className="h-full w-full object-cover" />
                 </div>
               )}
               <div
@@ -114,7 +100,7 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
                 {isStreamingDraft ? (
                   <div className="flex items-center gap-2 rounded-2xl bg-blush-50/80 backdrop-blur-sm px-4 py-3 text-sm text-blush-500 border border-blush-100/50">
                     <span className="h-2 w-2 animate-pulse rounded-full bg-gradient-to-r from-blush-400 to-mist-400" />
-                    正在连接 AI 教练...
+                    AI 教练正在快马加鞭地赶来...
                   </div>
                 ) : (
                   <div>
@@ -135,8 +121,8 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
                 )}
               </div>
               {isUser && (
-                <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                  <UserRound className="h-4 w-4" />
+                <div className={`mt-1 ${AVATAR_SIZE_CLASS} shrink-0 overflow-hidden rounded-full border border-white/80 bg-emerald-50 shadow-sm`}>
+                  <img src={userAvatar} alt="" className="h-full w-full object-cover" />
                 </div>
               )}
             </div>
@@ -156,25 +142,30 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
         }}
       >
         <div className="mx-auto w-full max-w-4xl">
-          <div className="mb-3 flex flex-wrap gap-2">
-            {(Object.keys(FEEDBACK_LABELS) as CheckInFeedback[]).map(feedback => (
-              <button
-                key={feedback}
-                type="button"
-                disabled={isResponding}
-                onClick={() => submitFeedback(feedback, FEEDBACK_LABELS[feedback])}
-                className={`cursor-pointer rounded-full px-6 py-3 text-base font-semibold text-white transition disabled:cursor-wait disabled:opacity-70 ${
-                  feedback === 'completed' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-orange-500 hover:bg-orange-600'
-                }`}
-              >
-                {FEEDBACK_LABELS[feedback]}
-              </button>
-            ))}
+          <div className="mb-3 grid gap-2 rounded-[26px] border border-blush-100/70 bg-gradient-to-r from-blush-50/80 via-white to-mist-50/80 p-2 shadow-sm md:grid-cols-3">
+            <button
+              type="button"
+              disabled={isResponding}
+              onClick={() => submitFeedback('completed', FEEDBACK_LABELS.completed)}
+              className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-wait disabled:opacity-70"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              做完了
+            </button>
+            <button
+              type="button"
+              disabled={isResponding}
+              onClick={() => submitFeedback('tooTired', FEEDBACK_LABELS.tooTired)}
+              className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-wait disabled:opacity-70"
+            >
+              <Flame className="h-4 w-4" />
+              太累了
+            </button>
             <button
               type="button"
               disabled={isResponding}
               onClick={onRequestNewPlan}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blush-500 to-mist-500 px-6 py-3 text-base font-semibold text-white transition hover:from-blush-600 hover:to-mist-600 disabled:cursor-wait disabled:opacity-70 shadow-bubble"
+              className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blush-500 to-mist-500 px-4 py-2.5 text-sm font-semibold text-white shadow-bubble transition hover:from-blush-600 hover:to-mist-600 disabled:cursor-wait disabled:opacity-70"
             >
               <RefreshCw className="h-4 w-4" />
               换一组训练

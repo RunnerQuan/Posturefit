@@ -3,6 +3,7 @@ import { ISSUE_LABELS } from '../../data/exercises';
 import { SkeletonOverlay } from './SkeletonOverlay';
 import { ScoreRing } from '../../components/ScoreRing';
 import { AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import aiCoachImage from '../../../assets/ai_coach_analysis.png';
 
 interface CombinedAnalysisViewProps {
   frontAnalysis: PostureAnalysisResult | null;
@@ -93,23 +94,32 @@ export function CombinedAnalysisView({
       <div className="space-y-6">
         {/* 体态评分概览 */}
         <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-card p-5 border border-white/40">
-          <div className="flex items-center gap-6">
-            <ScoreRing
-              score={combinedResult.score}
-              primaryIssueLabel={getPrimaryIssueLabel(combinedResult.primaryIssue)}
-            />
-            <div className="flex-1">
-              <h3 className="text-sm font-medium text-gray-500 mb-1 font-serif">综合体态报告</h3>
-              <p className="text-2xl font-bold text-gray-800 mb-2">{combinedResult.score.toFixed(1)}</p>
-              <p className="text-base text-gray-700 leading-relaxed">
-                {combinedResult.score >= 80
-                  ? '您的体态状态良好，继续保持规律运动和生活习惯。'
-                  : combinedResult.score >= 60
-                  ? '您的体态存在轻度偏差，建议针对性的日常矫正练习。'
-                  : combinedResult.score >= 40
-                  ? '您的体态有中度问题，建议坚持每日矫正训练并改善日常姿势。'
-                  : '您的体态问题较为明显，建议系统性的矫正训练并咨询专业理疗师。'}
-              </p>
+          <div className="grid items-center gap-5 md:-translate-y-8 md:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="flex items-center gap-6 md:translate-x-15">
+              <ScoreRing
+                score={combinedResult.score}
+                primaryIssueLabel={getPrimaryIssueLabel(combinedResult.primaryIssue)}
+              />
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-gray-500 mb-1 font-serif">综合体态报告</h3>
+                <p className="text-2xl font-bold text-gray-800 mb-2">{combinedResult.score.toFixed(1)}</p>
+                <p className="text-base text-gray-700 leading-relaxed">
+                  {combinedResult.score >= 80
+                    ? '您的体态状态良好，继续保持规律运动和生活习惯。'
+                    : combinedResult.score >= 60
+                    ? '您的体态存在轻度偏差，建议针对性的日常矫正练习。'
+                    : combinedResult.score >= 40
+                    ? '您的体态有中度问题，建议坚持每日矫正训练并改善日常姿势。'
+                    : '您的体态问题较为明显，建议系统性的矫正训练并咨询专业理疗师。'}
+                </p>
+              </div>
+            </div>
+            <div className="hidden justify-start md:flex md:-translate-x-8">
+              <img
+                src={aiCoachImage}
+                alt="AI 运动教练"
+                className="max-h-72 w-auto max-w-[360px] object-contain"
+              />
             </div>
           </div>
         </div>
@@ -220,23 +230,32 @@ export function CombinedAnalysisView({
       {/* 评分概览 */}
       <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-card p-5 border border-white/40">
         <h3 className="text-base font-medium text-gray-700 mb-4">分析结果</h3>
-        <div className="flex items-center gap-6">
-          <ScoreRing
-            score={analysis.score ?? 0}
-            primaryIssueLabel={getPrimaryIssueLabel(analysis.primaryIssue)}
-          />
-          <div className="flex-1">
-            <p className="text-sm text-gray-500 mb-1">体态评分</p>
-            <p className="text-2xl font-bold text-gray-800 mb-2">{(analysis.score ?? 0).toFixed(1)}</p>
-            <p className="text-base text-gray-700 leading-relaxed">
-              {(analysis.score ?? 0) >= 80
-                ? '您的体态状态良好，继续保持。'
-                : (analysis.score ?? 0) >= 60
-                ? '您的体态存在轻度偏差，建议日常矫正练习。'
-                : (analysis.score ?? 0) >= 40
-                ? '您的体态有中度问题，建议坚持每日矫正训练。'
-                : '您的体态问题较为明显，建议系统性的矫正训练。'}
-            </p>
+        <div className="grid items-center gap-5 md:-translate-y-8 md:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="flex items-center gap-6 md:translate-x-8">
+            <ScoreRing
+              score={analysis.score ?? 0}
+              primaryIssueLabel={getPrimaryIssueLabel(analysis.primaryIssue)}
+            />
+            <div className="flex-1">
+              <p className="text-sm text-gray-500 mb-1">体态评分</p>
+              <p className="text-2xl font-bold text-gray-800 mb-2">{(analysis.score ?? 0).toFixed(1)}</p>
+              <p className="text-base text-gray-700 leading-relaxed">
+                {(analysis.score ?? 0) >= 80
+                  ? '您的体态状态良好，继续保持。'
+                  : (analysis.score ?? 0) >= 60
+                  ? '您的体态存在轻度偏差，建议日常矫正练习。'
+                  : (analysis.score ?? 0) >= 40
+                  ? '您的体态有中度问题，建议坚持每日矫正训练。'
+                  : '您的体态问题较为明显，建议系统性的矫正训练。'}
+              </p>
+            </div>
+          </div>
+          <div className="hidden justify-start md:flex md:-translate-x-8">
+            <img
+              src={aiCoachImage}
+              alt="AI 运动教练"
+              className="max-h-72 w-auto max-w-[360px] object-contain"
+            />
           </div>
         </div>
       </div>

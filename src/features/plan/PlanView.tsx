@@ -63,7 +63,7 @@ export function PlanView({ plan, coachMessage, onStartTraining, onBack }: PlanVi
         <section className="rounded-2xl bg-white/80 backdrop-blur-md p-5 shadow-soft border border-white/50">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold bg-gradient-to-r from-blush-600 to-mist-600 bg-clip-text text-transparent">
             <MessageCircle className="h-4 w-4 text-blush-500" />
-            AI 运动搭子建议
+            AI 运动教练建议
           </div>
           <p className="whitespace-pre-line text-sm leading-7 text-mist-700">{coachMessage.content}</p>
         </section>

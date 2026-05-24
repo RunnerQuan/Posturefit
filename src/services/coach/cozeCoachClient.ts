@@ -1,5 +1,6 @@
 import { generateId } from '../../lib/ids';
 import { getCurrentISOString } from '../../lib/time';
+import { COACH_NAME } from '../../data/demoProfiles';
 import type {
   CheckInFeedback,
   CoachClient,
@@ -36,6 +37,7 @@ type CozePromptPayload = {
   }>;
   coachStyle: string;
   coachGender: string;
+  coachName: string;
   userGoal: string;
   bodyState: string;
   feedback: string;
@@ -152,6 +154,7 @@ function buildPayloadBase(
     issues: getCozeIssues(analysis),
     coachStyle: profile.coachStyle,
     coachGender: profile.coachGender,
+    coachName: COACH_NAME,
     userGoal: profile.userGoal,
     bodyState: profile.bodyState,
     captureMode,

@@ -64,6 +64,13 @@ vi.mock('./features/pose', async importOriginal => {
 
 const mockUsePoseDetection = vi.mocked(usePoseDetection);
 
+function enterCaptureIfNeeded() {
+  const startButton = screen.queryByRole('button', { name: '开始你的体态之旅 →' });
+  if (startButton) {
+    fireEvent.click(startButton);
+  }
+}
+
 // Mock pose data in 33-point format (BlazePose)
 const pose: PoseKeypoint33[] = [
   { name: 'nose', x: 0.5, y: 0.1, score: 0.95 },
@@ -120,7 +127,7 @@ describe('App frontend B flow', () => {
   it('runs upload, analysis, profile, chat plan, and check-in feedback', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: /开始你的体态之旅/ }));
+    enterCaptureIfNeeded();
     fireEvent.click(screen.getByRole('button', { name: '只拍侧面' }));
     fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
 
@@ -128,15 +135,23 @@ describe('App frontend B flow', () => {
     expect(screen.getByTestId('skeleton-overlay')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /继续选择教练/ }));
-    expect(await screen.findByText('定制你的 AI 运动搭子')).toBeInTheDocument();
+    expect(await screen.findByText('定制你的 AI 运动教练')).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('例如：改善圆肩、缓解久坐酸痛'), {
       target: { value: '改善圆肩' },
     });
     fireEvent.click(screen.getByRole('button', { name: '进入 AI 陪练' }));
 
-    expect(await screen.findByText(/今天完成 3 个动作了吗/)).toBeInTheDocument();
+    expect(await screen.findByText('历史评估')).toBeInTheDocument();
+    expect(screen.queryByText('AI 陪练')).not.toBeInTheDocument();
+    expect(screen.queryByText(/今天完成 3 个动作了吗/)).not.toBeInTheDocument();
     expect(screen.getAllByText('肩胛骨后缩').length).toBeGreaterThan(0);
+    expect(screen.getByText('历史评估')).toBeInTheDocument();
+    expect(screen.getByText('本次评估')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '做完了' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '太累了' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '换一组训练' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '新建评估' })).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('button', { name: '做完了' }));
     await waitFor(() => expect(screen.getAllByText('做完了').length).toBeGreaterThan(1));
@@ -146,7 +161,7 @@ describe('App frontend B flow', () => {
   it('persists a session into localStorage after analysis', async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: /开始你的体态之旅/ }));
+    enterCaptureIfNeeded();
     fireEvent.click(screen.getByRole('button', { name: '只拍侧面' }));
     fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
     await screen.findByText('分析结果');
