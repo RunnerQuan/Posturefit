@@ -6,10 +6,59 @@
 export type CaptureSourceType = 'camera' | 'upload';
 export type CaptureMode = 'fullBody' | 'halfBody' | 'closeUp' | 'sitting';
 
-// 新增：视角类型和视角选择
+// 视角类型和视角选择
 export type PoseView = 'front' | 'side';
 export type ViewSelection = 'front' | 'side' | 'dual';
 
+// =============================================================================
+// MediaPipe BlazePose 33 点关键点定义
+// 参考: docs/MediaPipe_BlazePose_体态识别替换技术文档.md
+// =============================================================================
+
+export type BlazePoseLandmark =
+  | 'nose'
+  | 'left_eye_inner'
+  | 'left_eye'
+  | 'left_eye_outer'
+  | 'right_eye_inner'
+  | 'right_eye'
+  | 'right_eye_outer'
+  | 'left_ear'
+  | 'right_ear'
+  | 'mouth_left'
+  | 'mouth_right'
+  | 'left_shoulder'
+  | 'right_shoulder'
+  | 'left_elbow'
+  | 'right_elbow'
+  | 'left_wrist'
+  | 'right_wrist'
+  | 'left_pinky'
+  | 'right_pinky'
+  | 'left_index'
+  | 'right_index'
+  | 'left_thumb'
+  | 'right_thumb'
+  | 'left_hip'
+  | 'right_hip'
+  | 'left_knee'
+  | 'right_knee'
+  | 'left_ankle'
+  | 'right_ankle'
+  | 'left_heel'
+  | 'right_heel'
+  | 'left_foot_index'
+  | 'right_foot_index';
+
+export type PoseKeypoint33 = {
+  name: BlazePoseLandmark;
+  x: number;
+  y: number;
+  z?: number;
+  score: number;
+};
+
+// 保留旧版 17 点类型以兼容
 export type KeypointName =
   | 'nose'
   | 'leftEye'
@@ -36,33 +85,39 @@ export type PoseKeypoint17 = {
   score: number;
 };
 
-// 扩展后的体态问题类型（正面6个 + 侧面4个 = 10个）
+// =============================================================================
+// 体态问题类型定义
+// =============================================================================
+
+// 体态问题类型（9个，不含骨盆前倾）
 export type PostureIssueType =
-  | 'forwardHead'           // 头前伸（正面）
-  | 'roundedShoulder'       // 圆肩（侧面）
-  | 'anteriorPelvicTilt'   // 骨盆前倾（侧面）
-  | 'shoulderImbalance'     // 高低肩（正面）
-  | 'pelvicTilt'            // 骨盆侧倾（正面）
-  | 'kneeValgus'           // 膝内扣（正面）
-  | 'headOffset'           // 头部左右偏移（正面）
-  | 'centerOfGravityShift' // 身体重心偏移（正面）
-  | 'hunchback'            // 驼背倾向（侧面）
-  | 'kneeHyperextension';  // 膝超伸（侧面）
+  | 'forwardHead'           // 头前伸
+  | 'roundedShoulder'       // 圆肩
+  | 'shoulderImbalance'     // 高低肩
+  | 'pelvicTilt'            // 骨盆侧倾
+  | 'kneeValgus'           // 膝内扣
+  | 'headOffset'           // 头部偏移
+  | 'centerOfGravityShift' // 重心偏移
+  | 'hunchback'            // 驼背倾向
+  | 'kneeHyperextension';  // 膝超伸
+
 export type PostureSeverity = 'normal' | 'mild' | 'moderate' | 'severe';
 
+// 体态角度指标（全部使用角度，单位：度）
 export type PostureAngleMetrics = {
   // 正面视角指标
-  forwardHeadAngle: number;       // 头前伸角度
-  shoulderImbalance: number;      // 高低肩差值(px)
-  pelvicTilt: number;             // 骨盆侧倾差值(px)
-  kneeValgus: number;             // 膝内扣角度
-  headOffset: number;             // 头部左右偏移(px)
-  centerOfGravityShift: number;   // 身体重心偏移(px)
+  forwardHeadAngle: number;       // 头前伸角度 (CVA近似角)
+  shoulderImbalanceAngle: number;  // 高低肩角度 (atan2斜率)
+  pelvicTiltAngle: number;         // 骨盆侧倾角度 (atan2斜率)
+  kneeValgusAngle: number;         // 膝内扣角度 (FPPA)
+  headOffsetAngle: number;         // 头部偏移角度
+  centerOfGravityShiftAngle: number; // 重心偏移角度
   // 侧面视角指标
-  roundedShoulderAngle: number;   // 圆肩角度
-  anteriorTiltAngle: number;      // 骨盆前倾角度
-  hunchback: number;             // 驼背倾向(px)
-  kneeHyperextension: number;    // 膝超伸角度
+  roundedShoulderAngle: number;    // 圆肩角度
+  hunchbackAngle: number;          // 驼背倾向角度 (加权综合)
+  kneeHyperextensionAngle: number; // 膝超伸角度
+  // 辅助指标（用于综合评分）
+  trunkLeanAngle?: number;         // 躯干前倾角度
 };
 
 export type PostureIssue = {
@@ -75,7 +130,7 @@ export type PostureIssue = {
 };
 
 export type PostureAnalysisResult = {
-  keypoints: PoseKeypoint17[];
+  keypoints: PoseKeypoint33[];
   metrics: PostureAngleMetrics;
   issues: PostureIssue[];
   primaryIssue: PostureIssueType | null;

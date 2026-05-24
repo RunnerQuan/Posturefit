@@ -29,6 +29,25 @@ export function calculateDistance(pointA: Point, pointB: Point): number {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+// distance 是 calculateDistance 的别名
+export const distance = calculateDistance;
+
+export function angleToHorizontal(pointA: Point, pointB: Point): number {
+  return Math.atan2(pointB.y - pointA.y, pointB.x - pointA.x) * (180 / Math.PI);
+}
+
+export function signedDistanceToLine(point: Point, lineStart: Point, lineEnd: Point): number {
+  const dx = lineEnd.x - lineStart.x;
+  const dy = lineEnd.y - lineStart.y;
+  const lineLength = Math.sqrt(dx * dx + dy * dy);
+
+  if (lineLength === 0) {
+    return 0;
+  }
+
+  return ((dx * (lineStart.y - point.y)) - (dy * (lineStart.x - point.x))) / lineLength;
+}
+
 export function normalizeAngle(angle: number): number {
   let normalized = angle % 360;
   if (normalized < 0) {

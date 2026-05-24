@@ -1,9 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import App from './App';
-import type { PoseKeypoint17 } from './types';
-import { usePoseDetection } from './features/pose';
-import type { UsePoseDetectionResult } from './features/pose';
+import { describe, expect, it } from 'vitest';
 
 vi.mock('./features/camera', () => ({
   CameraCapture: ({

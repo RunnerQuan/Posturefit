@@ -1,6 +1,5 @@
-import type { PoseKeypoint17, PostureIssueType, PostureIssue, PostureAngleMetrics } from '../../types';
-import { SKELETON_CONNECTIONS } from '../pose/normalizeKeypoints';
-import type { KeypointName } from '../../types';
+import type { PoseKeypoint33, BlazePoseLandmark, PostureIssueType, PostureIssue, PostureAngleMetrics } from '../../types';
+import { SKELETON_CONNECTIONS_33 } from '../pose/normalizeKeypoints';
 
 export interface DrawOptions {
   showKeypoints?: boolean;
@@ -35,7 +34,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 
 export function drawSkeleton(
   ctx: CanvasRenderingContext2D,
-  keypoints: PoseKeypoint17[],
+  keypoints: PoseKeypoint33[],
   metrics?: PostureAngleMetrics,
   issues?: PostureIssue[],
   score?: number,
@@ -72,7 +71,7 @@ export function drawSkeleton(
 
 function drawSkeletonLines(
   ctx: CanvasRenderingContext2D,
-  keypoints: PoseKeypoint17[],
+  keypoints: PoseKeypoint33[],
   scaleX: number,
   scaleY: number,
   color: string
@@ -81,10 +80,10 @@ function drawSkeletonLines(
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
 
-  const keypointMap = new Map<KeypointName, PoseKeypoint17>();
+  const keypointMap = new Map<BlazePoseLandmark, PoseKeypoint33>();
   keypoints.forEach(kp => keypointMap.set(kp.name, kp));
 
-  for (const [startName, endName] of SKELETON_CONNECTIONS) {
+  for (const [startName, endName] of SKELETON_CONNECTIONS_33) {
     const start = keypointMap.get(startName);
     const end = keypointMap.get(endName);
 
@@ -106,7 +105,7 @@ function drawSkeletonLines(
 
 function drawKeypoints(
   ctx: CanvasRenderingContext2D,
-  keypoints: PoseKeypoint17[],
+  keypoints: PoseKeypoint33[],
   scaleX: number,
   scaleY: number,
   baseColor: string
@@ -143,7 +142,7 @@ function drawAngleLabels(
   const labels = [
     { text: `头前伸: ${metrics.forwardHeadAngle.toFixed(1)}°`, y: 10 },
     { text: `圆肩: ${metrics.roundedShoulderAngle.toFixed(1)}°`, y: 30 },
-    { text: `骨盆前倾: ${metrics.anteriorTiltAngle.toFixed(1)}°`, y: 50 },
+    { text: `高低肩: ${metrics.shoulderImbalanceAngle.toFixed(1)}°`, y: 50 },
   ];
 
   const padding = 10;
@@ -163,28 +162,27 @@ function drawAngleLabels(
 
 function drawIssueLabels(
   ctx: CanvasRenderingContext2D,
-  keypoints: PoseKeypoint17[],
+  keypoints: PoseKeypoint33[],
   issues: PostureIssue[],
   scaleX: number,
   scaleY: number,
   fontSize: number
 ): void {
-  const keypointMap = new Map<KeypointName, PoseKeypoint17>();
+  const keypointMap = new Map<BlazePoseLandmark, PoseKeypoint33>();
   keypoints.forEach(kp => keypointMap.set(kp.name, kp));
 
-  const issuePositions: Record<PostureIssueType, { anchor: KeypointName; offset: { x: number; y: number } }> = {
+  const issuePositions: Record<PostureIssueType, { anchor: BlazePoseLandmark; offset: { x: number; y: number } }> = {
     forwardHead: { anchor: 'nose', offset: { x: 30, y: -20 } },
-    roundedShoulder: { anchor: 'leftShoulder', offset: { x: -80, y: -20 } },
-    anteriorPelvicTilt: { anchor: 'leftHip', offset: { x: -100, y: 20 } },
-    // 正面新增
-    shoulderImbalance: { anchor: 'leftShoulder', offset: { x: 80, y: -20 } },
-    pelvicTilt: { anchor: 'leftHip', offset: { x: 80, y: 20 } },
-    kneeValgus: { anchor: 'leftKnee', offset: { x: -80, y: 0 } },
+    roundedShoulder: { anchor: 'left_shoulder', offset: { x: -80, y: -20 } },
+    // 正面问题
+    shoulderImbalance: { anchor: 'left_shoulder', offset: { x: 80, y: -20 } },
+    pelvicTilt: { anchor: 'left_hip', offset: { x: 80, y: 20 } },
+    kneeValgus: { anchor: 'left_knee', offset: { x: -80, y: 0 } },
     headOffset: { anchor: 'nose', offset: { x: -80, y: 30 } },
-    centerOfGravityShift: { anchor: 'leftHip', offset: { x: -80, y: -20 } },
-    // 侧面新增
-    hunchback: { anchor: 'leftShoulder', offset: { x: 80, y: 0 } },
-    kneeHyperextension: { anchor: 'leftKnee', offset: { x: 80, y: 0 } },
+    centerOfGravityShift: { anchor: 'left_hip', offset: { x: -80, y: -20 } },
+    // 侧面问题
+    hunchback: { anchor: 'left_shoulder', offset: { x: 80, y: 0 } },
+    kneeHyperextension: { anchor: 'left_knee', offset: { x: 80, y: 0 } },
   };
 
   for (const issue of issues) {

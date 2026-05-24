@@ -112,14 +112,14 @@ export function createEmptyAnalysisResult(view: PoseView = 'front'): PostureAnal
     metrics: {
       forwardHeadAngle: 0,
       roundedShoulderAngle: 0,
-      anteriorTiltAngle: 0,
-      shoulderImbalance: 0,
-      pelvicTilt: 0,
-      kneeValgus: 0,
-      headOffset: 0,
-      centerOfGravityShift: 0,
-      hunchback: 0,
-      kneeHyperextension: 180,
+      shoulderImbalanceAngle: 0,
+      pelvicTiltAngle: 0,
+      kneeValgusAngle: 0,
+      headOffsetAngle: 0,
+      centerOfGravityShiftAngle: 0,
+      hunchbackAngle: 0,
+      kneeHyperextensionAngle: 180,
+      trunkLeanAngle: 0,
     },
     issues: [],
     primaryIssue: null,
@@ -130,7 +130,7 @@ export function createEmptyAnalysisResult(view: PoseView = 'front'): PostureAnal
 
 export function isAnalysisValid(result: PostureAnalysisResult): boolean {
   return (
-    result.keypoints.length === 17 &&
+    result.keypoints.length >= 17 &&
     result.issues.length > 0 &&
     result.analyzedAt !== ''
   );

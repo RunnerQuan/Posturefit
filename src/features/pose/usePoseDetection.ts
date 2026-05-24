@@ -1,26 +1,26 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { createPoseDetector, detectPose, disposeDetector, type MoveNetModelType } from './poseDetector';
-import { normalizeMoveNetKeypoints, areKeypointsValid } from './normalizeKeypoints';
-import type { PoseKeypoint17 } from '../../types';
+import { createPoseDetector, detectPose, disposeDetector, type BlazePoseModelType } from './poseDetector';
+import { normalizeBlazePoseKeypoints } from './normalizeKeypoints';
+import type { PoseKeypoint33 } from '../../types';
 
 export type UsePoseDetectionResult = {
   isModelLoading: boolean;
   isDetecting: boolean;
   error: string | null;
-  detectPoseFromImage: (imageUrl: string, minKeypointCount?: number) => Promise<PoseKeypoint17[]>;
-  detectPoseFromElement: (element: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, minKeypointCount?: number) => Promise<PoseKeypoint17[]>;
-  modelType: MoveNetModelType;
-  setModelType: (type: MoveNetModelType) => void;
+  detectPoseFromImage: (imageUrl: string, minKeypointCount?: number) => Promise<PoseKeypoint33[]>;
+  detectPoseFromElement: (element: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, minKeypointCount?: number) => Promise<PoseKeypoint33[]>;
+  modelType: BlazePoseModelType;
+  setModelType: (type: BlazePoseModelType) => void;
 };
 
 export function usePoseDetection(
   autoInit: boolean = true,
-  modelType: MoveNetModelType = 'SinglePose.Lightning'
+  modelType: BlazePoseModelType = 'BlazePose'
 ): UsePoseDetectionResult {
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentModelType, setCurrentModelType] = useState<MoveNetModelType>(modelType);
+  const [currentModelType, setCurrentModelType] = useState<BlazePoseModelType>(modelType);
   const isInitialized = useRef(false);
   const initPromise = useRef<Promise<void> | null>(null);
 
@@ -55,8 +55,8 @@ export function usePoseDetection(
 
   const detectPoseFromImage = useCallback(async (
     imageUrl: string,
-    minKeypointCount: number = 10
-  ): Promise<PoseKeypoint17[]> => {
+    minKeypointCount: number = 12
+  ): Promise<PoseKeypoint33[]> => {
     setIsDetecting(true);
     setError(null);
 
@@ -73,9 +73,10 @@ export function usePoseDetection(
       });
 
       const rawPose = await detectPose(img, false);
-      const keypoints = normalizeMoveNetKeypoints(rawPose.keypoints);
+      const keypoints = normalizeBlazePoseKeypoints(rawPose.keypoints);
 
-      if (!areKeypointsValid(keypoints, 0.3, minKeypointCount)) {
+      const validCount = keypoints.filter(k => k.score >= 0.5).length;
+      if (validCount < minKeypointCount) {
         throw new Error('检测到的关键点不足，请确保图片中包含清晰的人体');
       }
 
@@ -92,8 +93,8 @@ export function usePoseDetection(
   const detectPoseFromElement = useCallback(
     async (
       element: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
-      minKeypointCount: number = 10
-    ): Promise<PoseKeypoint17[]> => {
+      minKeypointCount: number = 12
+    ): Promise<PoseKeypoint33[]> => {
       setIsDetecting(true);
       setError(null);
 
@@ -101,9 +102,10 @@ export function usePoseDetection(
         await initializeModel();
 
         const rawPose = await detectPose(element, false);
-        const keypoints = normalizeMoveNetKeypoints(rawPose.keypoints);
+        const keypoints = normalizeBlazePoseKeypoints(rawPose.keypoints);
 
-        if (!areKeypointsValid(keypoints, 0.3, minKeypointCount)) {
+        const validCount = keypoints.filter(k => k.score >= 0.5).length;
+        if (validCount < minKeypointCount) {
           throw new Error('检测到的关键点不足，请确保身体在画面中清晰可见');
         }
 
@@ -119,7 +121,7 @@ export function usePoseDetection(
     [initializeModel]
   );
 
-  const setModelType = useCallback((type: MoveNetModelType) => {
+  const setModelType = useCallback((type: BlazePoseModelType) => {
     if (type !== currentModelType) {
       setCurrentModelType(type);
       isInitialized.current = false;

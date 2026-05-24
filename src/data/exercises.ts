@@ -1,5 +1,10 @@
 import type { PostureIssueType, Exercise, BodyState } from '../types';
 
+// =============================================================================
+// 训练动作库（9种体态问题，不含骨盆前倾）
+// 参考: docs/MediaPipe_BlazePose_体态识别替换技术文档.md
+// =============================================================================
+
 export const EXERCISES: Record<PostureIssueType, Exercise[]> = {
   forwardHead: [
     {
@@ -59,36 +64,7 @@ export const EXERCISES: Record<PostureIssueType, Exercise[]> = {
       contraindications: [],
     },
   ],
-  anteriorPelvicTilt: [
-    {
-      id: 'ap-1',
-      issueType: 'anteriorPelvicTilt',
-      name: '骨盆后倾训练',
-      description: '平躺在地面，屈膝，将腰部贴紧地面感受骨盆后倾',
-      durationSeconds: 60,
-      bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=骨盆后倾训练',
-      contraindications: [],
-    },
-    {
-      id: 'ap-2',
-      issueType: 'anteriorPelvicTilt',
-      name: '臀桥',
-      description: '平躺屈膝，收紧臀部抬起髋部至身体成一条直线',
-      durationSeconds: 45,
-      bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=臀桥',
-      contraindications: ['postpartum'],
-    },
-    {
-      id: 'ap-3',
-      issueType: 'anteriorPelvicTilt',
-      name: '髋屈肌拉伸',
-      description: '弓步姿势，后腿膝盖着地，身体前倾感受髋屈肌拉伸',
-      durationSeconds: 60,
-      bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=髋屈肌拉伸',
-      contraindications: ['menstrual'],
-    },
-  ],
-  // 新增正面视角问题的动作库（后续可扩展）
+  // 高低肩动作库
   shoulderImbalance: [
     {
       id: 'si-1',
@@ -323,7 +299,6 @@ export const ISSUE_LABELS: Record<PostureIssueType, string> = {
   centerOfGravityShift: '重心偏移',
   // 侧面视角问题
   roundedShoulder: '圆肩',
-  anteriorPelvicTilt: '骨盆前倾',
   hunchback: '驼背倾向',
   kneeHyperextension: '膝超伸',
 };

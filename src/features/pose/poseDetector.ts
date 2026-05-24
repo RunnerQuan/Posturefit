@@ -2,16 +2,18 @@ import '@tensorflow/tfjs-backend-webgl';
 import * as tf from '@tensorflow/tfjs';
 import * as poseDetection from '@tensorflow-models/pose-detection';
 
-export type MoveNetModelType = 'SinglePose.Lightning' | 'SinglePose.Thunder' | 'MultiPose.Lightning';
+export type BlazePoseModelType = 'BlazePose' | 'BlazePose_Lite' | 'BlazePose_Full' | 'BlazePose_Heavy';
 
 export interface PoseDetectorConfig {
-  modelType?: MoveNetModelType;
+  modelType?: BlazePoseModelType;
   enableSmoothing?: boolean;
+  runtime?: 'tfjs' | 'mediapipe';
 }
 
 const DEFAULT_CONFIG: Required<PoseDetectorConfig> = {
-  modelType: 'SinglePose.Lightning',
+  modelType: 'BlazePose',
   enableSmoothing: true,
+  runtime: 'tfjs',
 };
 
 let detector: poseDetection.PoseDetector | null = null;
@@ -42,28 +44,31 @@ export async function initializeTensorFlow(): Promise<void> {
 
 export async function createPoseDetector(config: PoseDetectorConfig = {}): Promise<poseDetection.PoseDetector> {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
-  
+
   if (detector) {
     return detector;
   }
 
   await initializeTensorFlow();
 
-  const model = poseDetection.SupportedModels.MoveNet;
-  const detectorConfig: poseDetection.MoveNetModelConfig = {
-    modelType: finalConfig.modelType,
+  // 使用 MediaPipe BlazePose 33点模型
+  const model = poseDetection.SupportedModels.BlazePose;
+  const detectorConfig: poseDetection.BlazePoseTfjsModelConfig = {
+    modelType: 'full', // 使用完整模型以获得最高精度
     enableSmoothing: finalConfig.enableSmoothing,
+    runtime: 'tfjs',
   };
 
   detector = await poseDetection.createDetector(model, detectorConfig);
-  console.log('Pose detector initialized:', finalConfig.modelType);
-  
+  console.log('BlazePose detector initialized');
+
   return detector;
 }
 
 export interface RawKeypoint {
   x: number;
   y: number;
+  z?: number;
   score?: number;
   name?: string;
 }
@@ -71,6 +76,7 @@ export interface RawKeypoint {
 export interface RawPose {
   keypoints: RawKeypoint[];
   score?: number;
+  worldKeypoints?: RawKeypoint[];
 }
 
 export async function detectPose(
