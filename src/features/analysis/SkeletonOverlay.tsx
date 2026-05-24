@@ -7,6 +7,7 @@ interface SkeletonOverlayProps {
   imageUrl: string;
   className?: string;
   autoAspectRatio?: boolean;
+  view?: 'front' | 'side';
 }
 
 export function SkeletonOverlay({ result, imageUrl, className = '', autoAspectRatio = false }: SkeletonOverlayProps) {

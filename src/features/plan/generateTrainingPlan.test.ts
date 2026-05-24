@@ -11,6 +11,9 @@ const analysis: CombinedAnalysisResult = {
     front: [],
     side: [],
   },
+  frontViewScore: { view: 'front', items: [], normalizedScore: 76 },
+  sideViewScore: { view: 'side', items: [], normalizedScore: 76 },
+  allScores: [],
 };
 
 describe('generateTrainingPlan', () => {

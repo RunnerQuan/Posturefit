@@ -35,7 +35,7 @@ export function HistoryRail({ sessions, currentSessionId, onSelect }: HistoryRai
               >
                 <span className="block text-sm font-semibold">{issue ? ISSUE_LABELS[issue] : '待分析记录'}</span>
                 <span className="mt-1 block text-xs text-gray-500">{formatDate(session.updatedAt)}</span>
-                {typeof score === 'number' && <span className="mt-1 block text-xs text-gray-500">评分 {score}</span>}
+                {typeof score === 'number' && <span className="mt-1 block text-xs text-gray-500">评分 {score.toFixed(1)}</span>}
               </button>
             );
           })}

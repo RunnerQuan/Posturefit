@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, RotateCcw, ShieldCheck } from 'lucide-react';
+import { ArrowRight, RotateCcw } from 'lucide-react';
 import { STEP_ORDER, canEnterStep, getStepProgress } from './app/stepMachine';
 import { StepIndicator } from './components/StepIndicator';
 import { AnalysisLoader } from './components/AnalysisLoader';
-import { ISSUE_LABELS } from './data/exercises';
 import { CameraCapture } from './features/camera';
 import { analyzePose, combineAnalyses, CombinedAnalysisView } from './features/analysis';
 import { usePoseDetection, validateKeypointsForMode, KEYPOINT_LABELS_33, MODE_MIN_KEYPOINTS } from './features/pose';
@@ -61,10 +60,6 @@ function getNextView(viewSelection: ViewSelection, currentCaptureView: PoseView 
   return viewSelection;
 }
 
-function getIssueLabel(issue: PostureAnalysisResult['primaryIssue']): string {
-  return issue ? ISSUE_LABELS[issue] : '体态维护';
-}
-
 function getUserFeedbackMessage(feedback: CheckInFeedback, feedbackText?: string): CoachMessage {
   return {
     id: generateId(),
@@ -80,19 +75,6 @@ function uniqueNames(names: string[]): string[] {
 
 function getExerciseNames(session: PostureSession): string[] {
   return session.plan?.exercises.map(exercise => exercise.name) ?? session.currentExerciseNames ?? [];
-}
-
-function getCoachChannelLabel(session: PostureSession | null): string {
-  const latestAssistant = [...(session?.chatMessages ?? [])].reverse().find(message => message.role === 'assistant');
-  if (latestAssistant?.source === 'coze') {
-    return 'Coze 实时连接';
-  }
-  if (latestAssistant?.source === 'mock') {
-    return latestAssistant.fallbackReason
-      ? `Mock 回退：${latestAssistant.fallbackReason}`
-      : 'Mock 演示';
-  }
-  return import.meta.env.VITE_COZE_ENABLED === 'true' ? 'Coze 已配置，等待请求' : 'Mock 演示';
 }
 
 const coachClient = createCoachClient();
@@ -567,9 +549,6 @@ function AppShell() {
   const frontAnalysis = photos.find(photo => photo.view === 'front')?.analysis ?? null;
   const sideAnalysis = photos.find(photo => photo.view === 'side')?.analysis ?? null;
   const combinedResult = currentSession?.combinedAnalysis ?? (frontAnalysis || sideAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : null);
-  const displayAnalysis = getDisplayAnalysis(currentSession);
-  const primaryIssue = displayAnalysis?.primaryIssue ?? null;
-  const score = 'score' in (displayAnalysis ?? {}) ? displayAnalysis?.score : undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-cyan-50">
@@ -704,19 +683,6 @@ function AppShell() {
         </section>
 
         <div className={`space-y-6 lg:sticky lg:top-6 lg:self-start ${currentStep === 'chat' ? 'hidden' : ''}`}>
-          <section className="rounded-2xl bg-white p-5 shadow-card">
-            <div className="mb-4 flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-primary-500" />
-              <h2 className="text-base font-semibold text-gray-800">当前状态</h2>
-            </div>
-            <div className="space-y-3 text-sm text-gray-600">
-              <p>步骤：{STEP_ORDER.indexOf(currentStep) + 1} / {STEP_ORDER.length}</p>
-              <p>主要问题：{getIssueLabel(primaryIssue)}</p>
-              {typeof score === 'number' && <p>体态评分：{score}</p>}
-              <p>教练通道：{getCoachChannelLabel(currentSession)}</p>
-            </div>
-          </section>
-
           <HistoryRail
             sessions={appState.sessions}
             currentSessionId={appState.currentSessionId}

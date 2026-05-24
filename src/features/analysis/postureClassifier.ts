@@ -114,7 +114,7 @@ function classifyForwardHeadSeverity(angle: number, thresholds: PostureThreshold
   if (angle >= thresholds.forwardHead.mild) {
     return 'mild';
   }
-  if (angle > thresholds.forwardHead.moderate) {
+  if (angle >= thresholds.forwardHead.moderate) {
     return 'moderate';
   }
   return 'severe';
@@ -254,7 +254,6 @@ export const FRONT_VIEW_ISSUES: PostureIssueType[] = [
   'kneeValgus',
   'headOffset',
   'centerOfGravityShift',
-  'forwardHead',
 ];
 
 // 侧面视角可检测的问题类型
@@ -262,6 +261,8 @@ export const SIDE_VIEW_ISSUES: PostureIssueType[] = [
   'roundedShoulder',
   'hunchback',
   'kneeHyperextension',
+  'forwardHead',          // CVA requires side-view ear-shoulder geometry
+  'anteriorPelvicTilt',  // shoulder-hip-knee angle requires side view
 ];
 
 // 拍摄模式与可分析问题的映射（根据关键点可见性）

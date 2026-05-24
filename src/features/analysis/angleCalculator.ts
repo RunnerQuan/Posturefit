@@ -217,34 +217,31 @@ export function calculateCenterOfGravityShiftAngle(keypoints: PoseKeypoint33[]):
 // ============================================================================
 
 /**
- * 头前伸角度：ear-shoulder 与水平线夹角（CVA近似）
+ * 头前伸角度：CVA（Craniovertebral Angle，耳-肩连线与水平线夹角）
  * 技术文档 6.1 节
  * 返回偏离正常姿态(50°)的角度，偏离越大表示头前伸越严重
  */
 export function calculateForwardHeadAngle(keypoints: PoseKeypoint33[]): number {
-  // 尝试获取可见侧的关键点
   const visibleSide = getVisibleSideKeypoint(keypoints, 'left');
-
   const NORMAL_CVA = 50; // 正常头颈椎角约 48-50°
 
-  const getDeviation = (rawAngle: number): number => {
-    // atan2 返回 -180° 到 180°，转换为与正常角度的最小偏离
-    // 例如：3° 和 177° 都表示接近水平（正常情况）
-    const normalized = Math.min(Math.abs(rawAngle), 180 - Math.abs(rawAngle));
-    return Math.max(0, NORMAL_CVA - normalized);
+  const trySide = (side: { shoulder: Point | null; ear: Point | null }): number => {
+    if (!side.shoulder || !side.ear) return -1;
+    const rawAngle = angleToHorizontal(side.shoulder, side.ear);
+    // atan2 gives 0° for vertical (ear directly above shoulder), 90° for horizontal
+    // CVA = 90 - |rawAngle| (so vertical = 90°, horizontal = 0°)
+    const absAngle = Math.min(Math.abs(rawAngle), 90);
+    const cva = 90 - absAngle;
+    // Positive deviation = forward head (CVA smaller than normal)
+    return Math.max(0, NORMAL_CVA - cva);
   };
 
-  if (!visibleSide.shoulder || !visibleSide.ear) {
+  let result = trySide(visibleSide);
+  if (result < 0) {
     const rightSide = getVisibleSideKeypoint(keypoints, 'right');
-    if (rightSide.shoulder && rightSide.ear) {
-      const rawAngle = angleToHorizontal(rightSide.shoulder, rightSide.ear);
-      return getDeviation(rawAngle);
-    }
-    return 0;
+    result = trySide(rightSide);
   }
-
-  const rawAngle = angleToHorizontal(visibleSide.shoulder, visibleSide.ear);
-  return getDeviation(rawAngle);
+  return result < 0 ? 0 : result;
 }
 
 /**

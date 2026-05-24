@@ -218,18 +218,18 @@ export function CombinedAnalysisView({
         <h3 className="text-base font-medium text-gray-700 mb-4">分析结果</h3>
         <div className="flex items-center gap-6">
           <ScoreRing
-            score={combinedResult.score}
-            primaryIssueLabel={getPrimaryIssueLabel(combinedResult.primaryIssue)}
+            score={analysis.score ?? 0}
+            primaryIssueLabel={getPrimaryIssueLabel(analysis.primaryIssue)}
           />
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">体态评分</p>
-            <p className="text-2xl font-bold text-gray-800 mb-2">{combinedResult.score.toFixed(1)}</p>
+            <p className="text-2xl font-bold text-gray-800 mb-2">{(analysis.score ?? 0).toFixed(1)}</p>
             <p className="text-base text-gray-700 leading-relaxed">
-              {combinedResult.score >= 80
+              {(analysis.score ?? 0) >= 80
                 ? '您的体态状态良好，继续保持。'
-                : combinedResult.score >= 60
+                : (analysis.score ?? 0) >= 60
                 ? '您的体态存在轻度偏差，建议日常矫正练习。'
-                : combinedResult.score >= 40
+                : (analysis.score ?? 0) >= 40
                 ? '您的体态有中度问题，建议坚持每日矫正训练。'
                 : '您的体态问题较为明显，建议系统性的矫正训练。'}
             </p>
