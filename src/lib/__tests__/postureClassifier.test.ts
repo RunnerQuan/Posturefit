@@ -5,6 +5,7 @@ import {
   classifyAllPostureIssues,
   findPrimaryIssue,
   calculatePostureScore,
+  calculateIssueScore,
   DEFAULT_THRESHOLDS,
 } from '../../features/analysis/postureClassifier';
 
@@ -100,27 +101,51 @@ describe('classifyPostureIssue', () => {
 });
 
 describe('classifyAllPostureIssues', () => {
-  it('should classify all posture issues', () => {
-    const metrics = {
-      forwardHeadAngle: 40,
-      roundedShoulderAngle: 35,
-      shoulderImbalanceAngle: 8,
-      pelvicTiltAngle: 8,
-      anteriorTiltAngle: 18,
-      kneeValgusAngle: 12,
-      headOffsetAngle: 6,
-      centerOfGravityShiftAngle: 6,
-      hunchbackAngle: 6,
-      kneeHyperextensionAngle: 162,
-      trunkLeanAngle: 0,
-    };
+  const metrics = {
+    forwardHeadAngle: 40,
+    roundedShoulderAngle: 35,
+    shoulderImbalanceAngle: 8,
+    pelvicTiltAngle: 8,
+    anteriorTiltAngle: 18,
+    kneeValgusAngle: 12,
+    headOffsetAngle: 6,
+    centerOfGravityShiftAngle: 6,
+    hunchbackAngle: 6,
+    kneeHyperextensionAngle: 162,
+    trunkLeanAngle: 0,
+  };
 
+  it('should classify all posture issues', () => {
     const issues = classifyAllPostureIssues(metrics);
 
     expect(issues.length).toBeGreaterThanOrEqual(6);
     expect(issues.find(i => i.type === 'roundedShoulder')?.severity).toBe('severe');
     expect(issues.find(i => i.type === 'forwardHead')?.severity).toBe('moderate');
     expect(issues.find(i => i.type === 'kneeHyperextension')?.severity).toBe('moderate');
+  });
+
+  it('only classifies side-view issues for side mode', () => {
+    const issues = classifyAllPostureIssues(metrics, DEFAULT_THRESHOLDS, 'side');
+
+    expect(issues.map(issue => issue.type)).toEqual([
+      'forwardHead',
+      'roundedShoulder',
+      'hunchback',
+      'kneeHyperextension',
+    ]);
+    expect(issues.every(issue => issue.view === 'side')).toBe(true);
+    expect(issues.map(issue => issue.type)).not.toContain('shoulderImbalance');
+    expect(issues.map(issue => issue.type)).not.toContain('pelvicTilt');
+    expect(issues.map(issue => issue.type)).not.toContain('kneeValgus');
+    expect(issues.map(issue => issue.type)).not.toContain('headOffset');
+    expect(issues.map(issue => issue.type)).not.toContain('centerOfGravityShift');
+    expect(issues.map(issue => issue.type)).not.toContain('anteriorPelvicTilt');
+  });
+});
+
+describe('calculateIssueScore', () => {
+  it('groups forward head under side-view scoring', () => {
+    expect(calculateIssueScore('forwardHead', 40).view).toBe('side');
   });
 });
 

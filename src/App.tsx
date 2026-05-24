@@ -39,19 +39,42 @@ function createEmptyAppState(): AppState {
   };
 }
 
+function getAllowedViews(viewSelection: ViewSelection): PoseView[] {
+  return viewSelection === 'dual' ? ['front', 'side'] : [viewSelection];
+}
+
+function filterPhotosForViewSelection(photos: CapturedPhoto[], viewSelection: ViewSelection): CapturedPhoto[] {
+  const allowedViews = getAllowedViews(viewSelection);
+  return photos.filter(photo => allowedViews.includes(photo.view));
+}
+
 function getSingleAnalysis(session: PostureSession | null): PostureAnalysisResult | null {
-  return session?.analysis ?? session?.photos.find(photo => photo.analysis)?.analysis ?? null;
+  if (!session) {
+    return null;
+  }
+  const allowedViews = getAllowedViews(session.viewSelection);
+  if (session.analysis && allowedViews.includes(session.analysis.view)) {
+    return session.analysis;
+  }
+  return filterPhotosForViewSelection(session.photos, session.viewSelection).find(photo => photo.analysis)?.analysis ?? null;
 }
 
 function getDisplayAnalysis(session: PostureSession | null): PostureAnalysisResult | CombinedAnalysisResult | null {
-  return session?.combinedAnalysis ?? getSingleAnalysis(session);
+  if (!session) {
+    return null;
+  }
+  if (session.viewSelection === 'dual' && session.combinedAnalysis) {
+    return session.combinedAnalysis;
+  }
+  return getSingleAnalysis(session);
 }
 
 function shouldStartAnalysis(session: PostureSession | null): boolean {
   if (!session || session.step !== 'analysis') {
     return false;
   }
-  return session.photos.length > 0 && session.photos.some(photo => !photo.analysis);
+  const photos = filterPhotosForViewSelection(session.photos, session.viewSelection);
+  return photos.length > 0 && photos.some(photo => !photo.analysis);
 }
 
 function getNextView(viewSelection: ViewSelection, currentCaptureView: PoseView | null): PoseView {
@@ -185,7 +208,9 @@ function AppShell() {
         capturedAt: getCurrentISOString(),
       };
       const baseSession = currentSession ?? createSession(sourceType, captureMode);
-      const photos = [...baseSession.photos.filter(item => item.view !== view), photo];
+      const photos = viewSelection === 'dual'
+        ? [...filterPhotosForViewSelection(baseSession.photos, viewSelection).filter(item => item.view !== view), photo]
+        : [photo];
       const nextStep = viewSelection === 'dual' && view === 'front' ? 'capture' : 'analysis';
       const nextSession = updateSession(baseSession, {
         sourceType,
@@ -242,7 +267,8 @@ function AppShell() {
 
   const performAnalysis = useCallback(
     async (session: PostureSession) => {
-      const photo = session.photos.find(item => !item.analysis);
+      const scopedPhotos = filterPhotosForViewSelection(session.photos, session.viewSelection);
+      const photo = scopedPhotos.find(item => !item.analysis);
       if (!photo) {
         return;
       }
@@ -253,7 +279,7 @@ function AppShell() {
       try {
         const minKeypointCount = MODE_MIN_KEYPOINTS[session.captureMode];
         const keypoints = await detectPoseFromImage(photo.imageUrl, minKeypointCount);
-        const validation = validateKeypointsForMode(keypoints, session.captureMode);
+        const validation = validateKeypointsForMode(keypoints, session.captureMode, photo.view);
 
         if (!validation.isValid) {
           const missingLabels = validation.missingKeypoints?.map(keypoint => KEYPOINT_LABELS_33[keypoint]).join('、') || '';
@@ -265,7 +291,7 @@ function AppShell() {
           view: photo.view,
           captureMode: session.captureMode,
         });
-        const photos = session.photos.map(item => (item.id === photo.id ? { ...item, analysis: result } : item));
+        const photos = scopedPhotos.map(item => (item.id === photo.id ? { ...item, analysis: result } : item));
         const analyzedPhotos = photos.filter(item => item.analysis);
         const frontAnalysis = photos.find(item => item.view === 'front')?.analysis ?? null;
         const sideAnalysis = photos.find(item => item.view === 'side')?.analysis ?? null;
@@ -273,7 +299,9 @@ function AppShell() {
           session.viewSelection === 'dual'
             ? Boolean(frontAnalysis || sideAnalysis) && analyzedPhotos.length >= Math.min(2, photos.length)
             : analyzedPhotos.length >= 1;
-        const combinedAnalysis = hasAllRequiredAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : session.combinedAnalysis;
+        const combinedAnalysis = session.viewSelection === 'dual' && hasAllRequiredAnalysis
+          ? combineAnalyses(frontAnalysis, sideAnalysis)
+          : undefined;
         const singleAnalysis = result;
 
         persistSession(updateSession(session, {
@@ -552,10 +580,12 @@ function AppShell() {
     [appState.sessions, navigateToStep]
   );
 
-  const photos = currentSession?.photos ?? [];
+  const photos = currentSession ? filterPhotosForViewSelection(currentSession.photos, currentSession.viewSelection) : [];
   const frontAnalysis = photos.find(photo => photo.view === 'front')?.analysis ?? null;
   const sideAnalysis = photos.find(photo => photo.view === 'side')?.analysis ?? null;
-  const combinedResult = currentSession?.combinedAnalysis ?? (frontAnalysis || sideAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : null);
+  const combinedResult = currentSession?.viewSelection === 'dual'
+    ? currentSession.combinedAnalysis ?? (frontAnalysis || sideAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : null)
+    : (frontAnalysis || sideAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : null);
 
   return (
     <div className="relative min-h-screen overflow-hidden">

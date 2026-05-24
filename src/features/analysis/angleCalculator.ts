@@ -220,13 +220,14 @@ export function calculateCenterOfGravityShiftAngle(keypoints: PoseKeypoint33[]):
  * 头前伸角度：CVA（Craniovertebral Angle，耳-肩连线与水平线夹角）
  * 技术文档 6.1 节
  * 返回偏离正常姿态(50°)的角度，偏离越大表示头前伸越严重
+ * 关键点不可见时返回 null
  */
-export function calculateForwardHeadAngle(keypoints: PoseKeypoint33[]): number {
+export function calculateForwardHeadAngle(keypoints: PoseKeypoint33[]): number | null {
   const visibleSide = getVisibleSideKeypoint(keypoints, 'left');
   const NORMAL_CVA = 50; // 正常头颈椎角约 48-50°
 
-  const trySide = (side: { shoulder: Point | null; ear: Point | null }): number => {
-    if (!side.shoulder || !side.ear) return -1;
+  const trySide = (side: { shoulder: Point | null; ear: Point | null }): number | null => {
+    if (!side.shoulder || !side.ear) return null;
     const rawAngle = angleToHorizontal(side.shoulder, side.ear);
     // atan2 gives 0° for vertical (ear directly above shoulder), 90° for horizontal
     // CVA = 90 - |rawAngle| (so vertical = 90°, horizontal = 0°)
@@ -237,26 +238,27 @@ export function calculateForwardHeadAngle(keypoints: PoseKeypoint33[]): number {
   };
 
   let result = trySide(visibleSide);
-  if (result < 0) {
+  if (result === null) {
     const rightSide = getVisibleSideKeypoint(keypoints, 'right');
     result = trySide(rightSide);
   }
-  return result < 0 ? 0 : result;
+  return result;
 }
 
 /**
  * 圆肩角度：肩点相对髋点前移 + 躯干前倾
  * 技术文档 6.2 节
  * 返回综合分数 (0-1)
+ * 关键点不可见时返回 null
  */
-export function calculateRoundedShoulderAngle(keypoints: PoseKeypoint33[]): number {
+export function calculateRoundedShoulderAngle(keypoints: PoseKeypoint33[]): number | null {
   const visibleSide = getVisibleSideKeypoint(keypoints, 'left');
   const { shoulder, hip, ear } = visibleSide;
 
   if (!shoulder || !hip) {
     const rightSide = getVisibleSideKeypoint(keypoints, 'right');
     if (!rightSide.shoulder || !rightSide.hip) {
-      return 0;
+      return null;
     }
     return calculateRoundShoulderFromPoints(rightSide.shoulder, rightSide.hip, rightSide.ear);
   }

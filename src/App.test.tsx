@@ -8,12 +8,35 @@ import type { PoseKeypoint33 } from './types';
 vi.mock('./features/camera', () => ({
   CameraCapture: ({
     onUploadImage,
+    onViewSelectionChange,
+    viewSelection,
+    currentCaptureView,
   }: {
     onUploadImage: (imageDataUrl: string, view: 'front' | 'side') => void;
+    onViewSelectionChange: (view: 'front' | 'side' | 'dual') => void;
+    viewSelection: 'front' | 'side' | 'dual';
+    currentCaptureView?: 'front' | 'side' | null;
   }) => (
-    <button type="button" onClick={() => onUploadImage(`data:image/${Date.now()}`, 'side')}>
-      上传侧面样例
-    </button>
+    <div>
+      <button type="button" onClick={() => onViewSelectionChange('front')}>
+        只拍正面
+      </button>
+      <button type="button" onClick={() => onViewSelectionChange('side')}>
+        只拍侧面
+      </button>
+      <button
+        type="button"
+        onClick={() => onUploadImage(`data:image/front-${Date.now()}`, viewSelection === 'dual' && currentCaptureView === 'front' ? 'side' : viewSelection === 'dual' ? 'front' : viewSelection)}
+      >
+        上传正面样例
+      </button>
+      <button
+        type="button"
+        onClick={() => onUploadImage(`data:image/side-${Date.now()}`, viewSelection === 'dual' && currentCaptureView === 'front' ? 'side' : viewSelection === 'dual' ? 'front' : viewSelection)}
+      >
+        上传侧面样例
+      </button>
+    </div>
   ),
 }));
 
@@ -98,6 +121,7 @@ describe('App frontend B flow', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: /开始你的体态之旅/ }));
+    fireEvent.click(screen.getByRole('button', { name: '只拍侧面' }));
     fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
 
     await screen.findByText('分析结果');
@@ -123,6 +147,7 @@ describe('App frontend B flow', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: /开始你的体态之旅/ }));
+    fireEvent.click(screen.getByRole('button', { name: '只拍侧面' }));
     fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
     await screen.findByText('分析结果');
 
@@ -130,5 +155,40 @@ describe('App frontend B flow', () => {
       const stored = localStorage.getItem('posturefit.appState.v1');
       expect(stored).toContain('sessions');
     });
+  });
+
+  it('drops stale front analysis when switching a session to side-only mode', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /开始你的体态之旅/ }));
+    fireEvent.click(screen.getByRole('button', { name: '只拍正面' }));
+    fireEvent.click(screen.getByRole('button', { name: '上传正面样例' }));
+
+    await screen.findByText('分析结果');
+    expect(screen.getByText('高低肩')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '拍照' }));
+    fireEvent.click(screen.getByRole('button', { name: '只拍侧面' }));
+    fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('高低肩')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText('骨盆侧倾')).not.toBeInTheDocument();
+    expect(screen.queryByText('膝内扣')).not.toBeInTheDocument();
+    expect(screen.queryByText('头部偏移')).not.toBeInTheDocument();
+    expect(screen.queryByText('重心偏移')).not.toBeInTheDocument();
+    expect(screen.queryByText('骨盆前倾')).not.toBeInTheDocument();
+    expect(screen.getAllByText('头前伸').length).toBeGreaterThan(0);
+
+    const stored = localStorage.getItem('posturefit.appState.v1');
+    expect(stored).not.toBeNull();
+    const parsed = JSON.parse(stored ?? '{}');
+    const session = parsed.sessions.find((item: { id: string }) => item.id === parsed.currentSessionId);
+    expect(session.viewSelection).toBe('side');
+    expect(session.photos.map((photo: { view: string }) => photo.view)).toEqual(['side']);
+    expect(session.combinedAnalysis).toBeUndefined();
+    expect(session.analysis.view).toBe('side');
+    expect(session.analysis.issues.map((issue: { type: string }) => issue.type)).not.toContain('shoulderImbalance');
   });
 });

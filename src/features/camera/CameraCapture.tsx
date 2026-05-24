@@ -43,6 +43,16 @@ const SIDE_MODE_GUIDES: Record<CaptureMode, string> = {
   sitting: '请侧身端正坐姿，双手放在膝盖上，保持放松',
 };
 
+export function resolveCaptureView(
+  viewSelection: ViewSelection,
+  currentCaptureView?: PoseView | null
+): PoseView {
+  if (viewSelection !== 'dual') {
+    return viewSelection;
+  }
+  return currentCaptureView === 'front' ? 'side' : 'front';
+}
+
 export function CameraCapture({
   onCapture,
   selectedMode,
@@ -65,6 +75,12 @@ export function CameraCapture({
 
   // 根据当前拍摄状态决定显示哪个视角指引
   const getCurrentViewGuide = (): string => {
+    if (viewSelection === 'side') {
+      return SIDE_MODE_GUIDES[selectedMode];
+    }
+    if (viewSelection === 'front') {
+      return FRONT_MODE_GUIDES[selectedMode];
+    }
     if (currentCaptureView === 'front') {
       return SIDE_MODE_GUIDES[selectedMode].replace('请', '现在请');
     }
@@ -86,8 +102,7 @@ export function CameraCapture({
   const handleCapture = () => {
     const frame = captureFrame();
     if (frame) {
-      // 如果已完成正面拍摄，下一张是侧面
-      const nextView: PoseView = currentCaptureView === 'front' ? 'side' : 'front';
+      const nextView = resolveCaptureView(viewSelection, currentCaptureView);
       onCapture(frame, nextView);
     }
   };
@@ -103,7 +118,7 @@ export function CameraCapture({
         reader.onload = (event) => {
           const dataUrl = event.target?.result as string;
           if (dataUrl) {
-            const nextView: PoseView = currentCaptureView === 'front' ? 'side' : 'front';
+            const nextView = resolveCaptureView(viewSelection, currentCaptureView);
             onUploadImage(dataUrl, nextView);
           }
         };
@@ -268,7 +283,7 @@ export function CameraCapture({
             className="px-10 py-4 bg-gradient-to-r from-blush-500 to-mist-500 hover:from-blush-600 hover:to-mist-600 text-white rounded-2xl font-semibold text-lg transition-colors cursor-pointer flex items-center gap-2 shadow-bubble"
           >
             <Camera className="w-5 h-5" />
-            {isFirstCaptureDone ? '拍摄侧面' : '拍照'}
+            {viewSelection === 'side' || isFirstCaptureDone ? '拍摄侧面' : '拍照'}
           </button>
         ) : permissionState !== 'denied' && permissionState !== 'unavailable' ? (
           <button
