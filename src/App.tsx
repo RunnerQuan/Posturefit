@@ -15,6 +15,7 @@ import { createCoachClient } from './services/coach';
 import { createSession, loadAppState, saveAppState, updateSession } from './services/storage/sessionStorage';
 import { generateId } from './lib/ids';
 import { getCurrentISOString } from './lib/time';
+import { LandingPage } from './features/landing/LandingPage';
 import type {
   AppState,
   CaptureMode,
@@ -780,13 +781,13 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/capture" replace />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/capture" element={<AppShell />} />
         <Route path="/analysis" element={<AppShell />} />
         <Route path="/profile" element={<AppShell />} />
         <Route path="/chat" element={<AppShell />} />
         <Route path="/plan" element={<Navigate to="/chat" replace />} />
-        <Route path="*" element={<Navigate to="/capture" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
