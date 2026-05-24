@@ -286,8 +286,9 @@ function calculateRoundShoulderFromPoints(
   }
 
   // 综合评分
-  const shoulderWidth = Math.abs(shoulder.x - hip.x) || 1;
-  const normalizedHead = headForward / shoulderWidth;
+  // 修复：用肩-髋垂直距离归一化（典型值约 0.15-0.25，不会接近零）
+  const bodyHeight = Math.abs(shoulder.y - hip.y) || 1;
+  const normalizedHead = headForward / bodyHeight;
   const normalizedTrunk = trunkLean / 45;
 
   return (0.5 * normalizedHead + 0.5 * normalizedTrunk) * 30; // 转换为角度范围
@@ -323,9 +324,9 @@ function calculateHunchbackFromPoints(
   const normalized = Math.min(Math.abs(rawAngle), 180 - Math.abs(rawAngle));
   const trunkLean = Math.abs(90 - normalized);
 
-  // 肩部前移
+  // 修复：用肩-髋垂直距离归一化（典型值约 0.15-0.25，不会接近零）
+  const bodyHeight = Math.abs(shoulder.y - hip.y) || 1;
   const shoulderForward = Math.abs(shoulder.x - hip.x);
-  const shoulderWidth = Math.abs(shoulder.x - hip.x) || 1;
 
   // 头部前移
   let headForward = 0;
@@ -334,8 +335,8 @@ function calculateHunchbackFromPoints(
   }
 
   // 归一化并加权
-  const fhp_norm = headForward / shoulderWidth;
-  const shoulder_norm = shoulderForward / shoulderWidth;
+  const fhp_norm = headForward / bodyHeight;
+  const shoulder_norm = shoulderForward / bodyHeight;
   const trunk_norm = trunkLean / 45;
 
   const score = 0.4 * fhp_norm + 0.3 * shoulder_norm + 0.3 * trunk_norm;

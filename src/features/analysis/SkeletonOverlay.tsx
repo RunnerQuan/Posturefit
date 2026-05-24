@@ -57,16 +57,12 @@ export function SkeletonOverlay({ result, imageUrl, className = '', autoAspectRa
       drawSkeleton(
         ctx,
         result.keypoints,
-        result.metrics,
         result.issues,
-        result.score,
         { width: canvas.width, height: canvas.height },
         {
           showKeypoints: true,
           showSkeleton: true,
-          showAngles: true,
           showIssues: true,
-          showScores: true,
         }
       );
     }
@@ -74,26 +70,18 @@ export function SkeletonOverlay({ result, imageUrl, className = '', autoAspectRa
 
   useEffect(() => {
     const container = containerRef.current;
-    const canvas = canvasRef.current;
-    if (!container || !canvas) {
+    if (!container) {
       return;
     }
 
     const resizeObserver = new ResizeObserver(() => {
-      const containerWidth = container.clientWidth;
-      const containerHeight = container.clientHeight;
-
       if (imageRef.current) {
-        const img = imageRef.current;
-        const imgWidth = img.naturalWidth || img.width;
-        const imgHeight = img.naturalHeight || img.height;
-
-        const scaleX = containerWidth / imgWidth;
-        const scaleY = containerHeight / imgHeight;
-        const scale = Math.min(scaleX, scaleY);
-
-        canvas.style.width = `${imgWidth * scale}px`;
-        canvas.style.height = `${imgHeight * scale}px`;
+        // 触发重新渲染以更新 canvas 尺寸
+        setAspectRatio((prev) => {
+          const img = imageRef.current!;
+          const currentRatio = img.naturalWidth / img.naturalHeight;
+          return currentRatio === prev ? prev : currentRatio;
+        });
       }
     });
 

@@ -1,6 +1,6 @@
 import type { PostureAnalysisResult, CombinedAnalysisResult, PoseView, PostureIssue, CaptureMode } from '../../types';
 import { calculateAllPostureAngles, calculateFrontViewMetrics, calculateSideViewMetrics } from './angleCalculator';
-import { classifyAllPostureIssues, findPrimaryIssue, calculatePostureScore } from './postureClassifier';
+import { classifyAllPostureIssues, findPrimaryIssue, calculatePostureScore, calculatePostureScoreWithNormalization } from './postureClassifier';
 import { getCurrentISOString } from '../../lib/time';
 
 export interface AnalyzePoseOptions {
@@ -94,14 +94,17 @@ export function combineAnalyses(
   // 选择主要问题（最严重的非正常问题）
   const primaryIssue = findPrimaryIssue(allIssues);
 
-  // 计算综合评分
-  const score = calculatePostureScore(allIssues);
+  // 计算综合评分（使用高斯衰减 + 按视图归一化）
+  const { finalScore, frontViewScore, sideViewScore, allScores } = calculatePostureScoreWithNormalization(allIssues);
 
   return {
     allIssues,
     issuesByView,
     primaryIssue,
-    score,
+    score: finalScore,
+    frontViewScore,
+    sideViewScore,
+    allScores,
     analyzedAt: getCurrentISOString(),
   };
 }

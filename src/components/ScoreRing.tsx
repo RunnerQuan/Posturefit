@@ -64,7 +64,7 @@ export function ScoreRing({
             className="font-bold text-2xl leading-none font-serif"
             style={{ color }}
           >
-            {score}
+            {score.toFixed(1)}
           </span>
           <span className="text-xs text-gray-500 mt-1">分</span>
         </div>

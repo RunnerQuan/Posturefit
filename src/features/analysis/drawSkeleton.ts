@@ -1,12 +1,10 @@
-import type { PoseKeypoint33, BlazePoseLandmark, PostureIssueType, PostureIssue, PostureAngleMetrics } from '../../types';
+import type { PoseKeypoint33, BlazePoseLandmark, PostureIssueType, PostureIssue } from '../../types';
 import { SKELETON_CONNECTIONS_33 } from '../pose/normalizeKeypoints';
 
 export interface DrawOptions {
   showKeypoints?: boolean;
   showSkeleton?: boolean;
-  showAngles?: boolean;
   showIssues?: boolean;
-  showScores?: boolean;
   keypointColor?: string;
   skeletonColor?: string;
   issueColor?: string;
@@ -16,9 +14,7 @@ export interface DrawOptions {
 const DEFAULT_OPTIONS: Required<DrawOptions> = {
   showKeypoints: true,
   showSkeleton: true,
-  showAngles: true,
   showIssues: true,
-  showScores: true,
   keypointColor: '#00FF00',
   skeletonColor: '#00FF00',
   issueColor: '#FF4444',
@@ -35,9 +31,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 export function drawSkeleton(
   ctx: CanvasRenderingContext2D,
   keypoints: PoseKeypoint33[],
-  metrics?: PostureAngleMetrics,
-  issues?: PostureIssue[],
-  score?: number,
+  issues: PostureIssue[] = [],
   imageSize: { width: number; height: number } = { width: ctx.canvas.width, height: ctx.canvas.height },
   options: DrawOptions = {}
 ): void {
@@ -56,16 +50,8 @@ export function drawSkeleton(
     drawKeypoints(ctx, keypoints, scaleX, scaleY, opts.keypointColor);
   }
 
-  if (opts.showAngles && metrics) {
-    drawAngleLabels(ctx, metrics, opts.fontSize);
-  }
-
   if (opts.showIssues && issues) {
     drawIssueLabels(ctx, keypoints, issues, scaleX, scaleY, opts.fontSize);
-  }
-
-  if (opts.showScores && score !== undefined) {
-    drawScore(ctx, score, opts.fontSize);
   }
 }
 
@@ -128,36 +114,6 @@ function drawKeypoints(
     ctx.lineWidth = 2;
     ctx.stroke();
   }
-}
-
-function drawAngleLabels(
-  ctx: CanvasRenderingContext2D,
-  metrics: PostureAngleMetrics,
-  fontSize: number
-): void {
-  ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-
-  const labels = [
-    { text: `头前伸: ${metrics.forwardHeadAngle.toFixed(1)}°`, y: 10 },
-    { text: `圆肩: ${metrics.roundedShoulderAngle.toFixed(1)}°`, y: 30 },
-    { text: `高低肩: ${metrics.shoulderImbalanceAngle.toFixed(1)}°`, y: 50 },
-  ];
-
-  const padding = 10;
-  const boxWidth = 160;
-  const boxHeight = 80;
-
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-  ctx.beginPath();
-  ctx.roundRect(padding, padding, boxWidth, boxHeight, 8);
-  ctx.fill();
-
-  labels.forEach(({ text, y }) => {
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(text, padding + 10, padding + y);
-  });
 }
 
 function drawIssueLabels(
@@ -223,31 +179,4 @@ function drawIssueLabels(
     ctx.textBaseline = 'top';
     ctx.fillText(issue.label, x, y);
   }
-}
-
-function drawScore(
-  ctx: CanvasRenderingContext2D,
-  score: number,
-  fontSize: number
-): void {
-  const x = ctx.canvas.width - 70;
-  const y = 20;
-  const radius = 35;
-
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-  ctx.fill();
-
-  const scoreColor = score >= 80 ? '#00FF00' : score >= 60 ? '#FFFF00' : '#FF4444';
-
-  ctx.font = `bold ${fontSize + 4}px -apple-system, BlinkMacSystemFont, sans-serif`;
-  ctx.fillStyle = scoreColor;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(score.toString(), x, y - 5);
-
-  ctx.font = `${fontSize - 4}px -apple-system, BlinkMacSystemFont, sans-serif`;
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillText('分', x, y + 18);
 }

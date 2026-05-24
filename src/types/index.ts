@@ -131,6 +131,22 @@ export type PostureIssue = {
   view: PoseView;  // 问题来源视角
 };
 
+// 单项评分结果（用于高斯衰减评分）
+export type PostureIssueScore = {
+  type: PostureIssueType;
+  rawAngle: number;
+  deviation: number;
+  gaussianScore: number;  // 0-100
+  view: PoseView;
+};
+
+// 按视图归一化的分数结果
+export type ViewNormalizedScore = {
+  view: PoseView;
+  items: PostureIssueScore[];
+  normalizedScore: number;  // 0-100
+};
+
 export type PostureAnalysisResult = {
   keypoints: PoseKeypoint33[];
   metrics: PostureAngleMetrics;
@@ -146,7 +162,10 @@ export type CombinedAnalysisResult = {
   allIssues: PostureIssue[];           // 所有问题（含来源标注，按严重程度排序）
   issuesByView: Record<PoseView, PostureIssue[]>;  // 按视角分组的问题
   primaryIssue: PostureIssueType | null;
-  score: number;
+  score: number;                       // 最终综合分数（0-100）
+  frontViewScore: ViewNormalizedScore; // 正面视图归一化分数
+  sideViewScore: ViewNormalizedScore;  // 侧面视图归一化分数
+  allScores: PostureIssueScore[];      // 所有单项分数
   analyzedAt: string;
 };
 

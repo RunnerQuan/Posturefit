@@ -6,7 +6,7 @@ import { StepIndicator } from './components/StepIndicator';
 import { AnalysisLoader } from './components/AnalysisLoader';
 import { ISSUE_LABELS } from './data/exercises';
 import { CameraCapture } from './features/camera';
-import { SkeletonOverlay, analyzePose, combineAnalyses, CombinedAnalysisView } from './features/analysis';
+import { analyzePose, combineAnalyses, CombinedAnalysisView } from './features/analysis';
 import { usePoseDetection, validateKeypointsForMode, KEYPOINT_LABELS_33, MODE_MIN_KEYPOINTS } from './features/pose';
 import { CoachChat } from './features/chat/CoachChat';
 import { HistoryRail } from './features/history/HistoryRail';
@@ -649,29 +649,14 @@ function AppShell() {
                       sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
                     />
                   ) : (
-                    <div className="mx-auto max-w-2xl rounded-2xl bg-white p-6 shadow-card">
-                      <div className="mb-4 flex items-center justify-between">
-                        <h3 className="text-base font-medium text-gray-700">分析结果</h3>
-                        <div className="text-2xl font-bold text-gray-900">
-                          {combinedResult.score}
-                          <span className="ml-1 text-sm font-normal text-gray-400">分</span>
-                        </div>
-                      </div>
-                      <div className="mb-6 overflow-hidden rounded-2xl bg-gray-900">
-                        <SkeletonOverlay
-                          result={getSingleAnalysis(currentSession)!}
-                          imageUrl={photos[0]?.imageUrl ?? ''}
-                          className="max-h-[400px]"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        {combinedResult.allIssues.map((issue, index) => (
-                          <div key={`${issue.type}-${index}`} className="rounded-xl bg-primary-50 px-4 py-3 text-sm text-primary-700">
-                            {issue.label}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <CombinedAnalysisView
+                      frontAnalysis={frontAnalysis}
+                      sideAnalysis={sideAnalysis}
+                      combinedResult={combinedResult}
+                      showDualViews={false}
+                      frontImageUrl={photos.find(photo => photo.view === 'front')?.imageUrl ?? photos[0]?.imageUrl ?? ''}
+                      sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
+                    />
                   )}
 
                   <div className="mx-auto flex max-w-2xl flex-col gap-3">

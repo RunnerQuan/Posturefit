@@ -17,13 +17,17 @@ vi.mock('./features/camera', () => ({
   ),
 }));
 
+vi.mock('./features/analysis/SkeletonOverlay', () => ({
+  SkeletonOverlay: ({ imageUrl }: { imageUrl: string }) => (
+    <div data-testid="skeleton-overlay">{imageUrl}</div>
+  ),
+}));
+
 vi.mock('./features/analysis', async importOriginal => {
   const actual = await importOriginal<typeof import('./features/analysis')>();
   return {
     ...actual,
-    SkeletonOverlay: ({ imageUrl }: { imageUrl: string }) => (
-      <div data-testid="skeleton-overlay">{imageUrl}</div>
-    ),
+    CombinedAnalysisView: actual.CombinedAnalysisView,
   };
 });
 

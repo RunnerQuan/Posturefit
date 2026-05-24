@@ -96,6 +96,7 @@ export function CombinedAnalysisView({
             />
             <div className="flex-1">
               <h3 className="text-sm font-medium text-gray-500 mb-1 font-serif">综合体态报告</h3>
+              <p className="text-2xl font-bold text-gray-800 mb-2">{combinedResult.score.toFixed(1)}</p>
               <p className="text-base text-gray-700 leading-relaxed">
                 {combinedResult.score >= 80
                   ? '您的体态状态良好，继续保持规律运动和生活习惯。'
@@ -121,6 +122,7 @@ export function CombinedAnalysisView({
                   imageUrl={frontImageUrl}
                   className="w-full min-h-[200px]"
                   autoAspectRatio={true}
+                  view="front"
                 />
               ) : (
                 <div className="w-full min-h-[200px] bg-gray-50 rounded-2xl flex items-center justify-center">
@@ -140,6 +142,7 @@ export function CombinedAnalysisView({
                   imageUrl={sideImageUrl}
                   className="w-full min-h-[200px]"
                   autoAspectRatio={true}
+                  view="side"
                 />
               ) : (
                 <div className="w-full min-h-[200px] bg-gray-50 rounded-2xl flex items-center justify-center">
@@ -199,6 +202,7 @@ export function CombinedAnalysisView({
 
   // 单视角模式（向后兼容）
   const analysis = frontAnalysis || sideAnalysis;
+  const analysisView = frontAnalysis ? 'front' : 'side';
   if (!analysis) {
     return (
       <div className="text-center py-8 text-gray-400 bg-white rounded-2xl shadow-card">
@@ -211,19 +215,21 @@ export function CombinedAnalysisView({
     <div className="space-y-6">
       {/* 评分概览 */}
       <div className="bg-white rounded-2xl shadow-card p-6">
+        <h3 className="text-base font-medium text-gray-700 mb-4">分析结果</h3>
         <div className="flex items-center gap-6">
           <ScoreRing
-            score={analysis.score ?? 0}
-            primaryIssueLabel={getPrimaryIssueLabel(analysis.primaryIssue)}
+            score={combinedResult.score}
+            primaryIssueLabel={getPrimaryIssueLabel(combinedResult.primaryIssue)}
           />
           <div className="flex-1">
             <p className="text-sm text-gray-500 mb-1">体态评分</p>
+            <p className="text-2xl font-bold text-gray-800 mb-2">{combinedResult.score.toFixed(1)}</p>
             <p className="text-base text-gray-700 leading-relaxed">
-              {analysis.score && analysis.score >= 80
+              {combinedResult.score >= 80
                 ? '您的体态状态良好，继续保持。'
-                : analysis.score && analysis.score >= 60
+                : combinedResult.score >= 60
                 ? '您的体态存在轻度偏差，建议日常矫正练习。'
-                : analysis.score && analysis.score >= 40
+                : combinedResult.score >= 40
                 ? '您的体态有中度问题，建议坚持每日矫正训练。'
                 : '您的体态问题较为明显，建议系统性的矫正训练。'}
             </p>
@@ -236,8 +242,9 @@ export function CombinedAnalysisView({
         <SkeletonOverlay
           result={analysis}
           imageUrl={frontImageUrl || sideImageUrl}
-          className="max-h-[400px]"
+          className="max-h-[400px] w-full"
           autoAspectRatio={true}
+          view={analysisView}
         />
       </div>
 

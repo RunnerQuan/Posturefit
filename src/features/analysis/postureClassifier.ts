@@ -1,5 +1,39 @@
-import type { PostureAngleMetrics, PostureIssueType, PostureSeverity, PostureIssue, PoseView, CaptureMode } from '../../types';
+import type { PostureAngleMetrics, PostureIssueType, PostureSeverity, PostureIssue, PoseView, CaptureMode, PostureIssueScore, ViewNormalizedScore } from '../../types';
 import { ISSUE_LABELS } from '../../data/exercises';
+
+// =============================================================================
+// 高斯衰减评分参数
+// sigma: 标准差，越小越敏感（偏离一点就大幅扣分）
+// center: 理想值，该指标应该趋近的角度
+// =============================================================================
+
+export interface GaussianParam {
+  sigma: number;
+  center: number;
+}
+
+export const GAUSSIAN_PARAMS: Record<PostureIssueType, GaussianParam> = {
+  // forwardHeadAngle 是实际 CVA 角度，50° 为理想值
+  forwardHead:            { sigma: 8,  center: 50 },
+  // roundedShoulderAngle 本身就是偏离20°的角度
+  roundedShoulder:         { sigma: 12, center: 0 },
+  // 以下都是偏差点位
+  shoulderImbalance:       { sigma: 6,  center: 0 },
+  pelvicTilt:              { sigma: 6,  center: 0 },
+  anteriorPelvicTilt:      { sigma: 10, center: 0 },
+  kneeValgus:              { sigma: 8,  center: 0 },
+  headOffset:              { sigma: 5,  center: 0 },
+  centerOfGravityShift:    { sigma: 5,  center: 0 },
+  hunchback:               { sigma: 5,  center: 0 },
+  // kneeHyperextensionAngle 是实际角度，正常范围 170-185
+  kneeHyperextension:      { sigma: 8,  center: 177 },
+};
+
+function gaussianScore(angle: number, center: number, sigma: number): number {
+  const deviation = Math.abs(angle - center);
+  const exponent = -(deviation ** 2) / (2 * sigma ** 2);
+  return 100 * Math.exp(exponent);
+}
 
 // =============================================================================
 // 体态问题分类器
@@ -31,8 +65,9 @@ export interface PostureThresholds {
 
 // 技术文档建议的阈值
 export const DEFAULT_THRESHOLDS: PostureThresholds = {
-  // 头前伸：返回偏离正常姿态(50°)的角度，偏离越大越严重
-  forwardHead: { normal: 0, mild: 5, moderate: 10 },
+  // 头前伸：CVA 角度阈值（越大越好）
+  // normal: CVA >= 50°, mild: CVA >= 45°, moderate: CVA > 40°
+  forwardHead: { normal: 50, mild: 45, moderate: 40 },
   // 圆肩
   roundedShoulder: { normal: 20, mild: 25, moderate: 30 },
   // 高低肩：技术文档 6.4 节建议 <2° 正常, 2-5° 轻度, >5° 明显风险
@@ -49,7 +84,7 @@ export const DEFAULT_THRESHOLDS: PostureThresholds = {
   centerOfGravityShift: { normal: 3, mild: 5, moderate: 8 },
   // 驼背：技术文档 6.9 节综合评分阈值
   hunchback: { normal: 3, mild: 5, moderate: 8 },
-  // 膝超伸：技术文档 6.10 节建议
+  // 膝超伸：技术文档 6.10 节建议，正常范围 170-185
   kneeHyperextension: { normalMin: 170, normalMax: 185, mild: 165, moderate: 160 },
 };
 
@@ -71,15 +106,15 @@ function classifyAngleBasedSeverity(
 }
 
 function classifyForwardHeadSeverity(angle: number, thresholds: PostureThresholds): PostureSeverity {
-  // 现在 angle 是偏离正常姿态(50°)的角度，偏离越大越严重
-  const deviation = Math.abs(angle); // 确保非负
-  if (deviation < thresholds.forwardHead.normal) {
+  // angle 是实际 CVA 角度（越大越好），阈值表示边界值
+  // normal: CVA >= 50, mild: CVA >= 45 && < 50, moderate: CVA > 40 && < 45, severe: CVA <= 40
+  if (angle >= thresholds.forwardHead.normal) {
     return 'normal';
   }
-  if (deviation < thresholds.forwardHead.mild) {
+  if (angle >= thresholds.forwardHead.mild) {
     return 'mild';
   }
-  if (deviation < thresholds.forwardHead.moderate) {
+  if (angle > thresholds.forwardHead.moderate) {
     return 'moderate';
   }
   return 'severe';
@@ -212,7 +247,7 @@ function getIssueLabel(type: PostureIssueType, severity: PostureSeverity, angle:
   }
 }
 
-// 正面视角可检测的问题类型
+// 正面视角可检测的问题类型（仅限真正能从正面测量的）
 export const FRONT_VIEW_ISSUES: PostureIssueType[] = [
   'shoulderImbalance',
   'pelvicTilt',
@@ -230,24 +265,20 @@ export const SIDE_VIEW_ISSUES: PostureIssueType[] = [
 ];
 
 // 拍摄模式与可分析问题的映射（根据关键点可见性）
+// 注意：forwardHead、roundedShoulder、hunchback 都需要侧面视角数据
+// 只在侧面照或 fullBody 模式下计算
 export const MODE_ANALYZABLE_ISSUES: Record<CaptureMode, PostureIssueType[]> = {
   fullBody: [...FRONT_VIEW_ISSUES, ...SIDE_VIEW_ISSUES],
   halfBody: [
-    'forwardHead',
-    'roundedShoulder',
     'shoulderImbalance',
     'headOffset',
     'pelvicTilt',
   ],
   closeUp: [
-    'forwardHead',
-    'roundedShoulder',
     'shoulderImbalance',
     'headOffset',
   ],
   sitting: [
-    'forwardHead',
-    'roundedShoulder',
     'shoulderImbalance',
     'headOffset',
     'pelvicTilt',
@@ -344,4 +375,109 @@ export function calculatePostureScore(issues: PostureIssue[]): number {
   }
 
   return Math.max(0, 100 - totalDeduction);
+}
+
+// =============================================================================
+// 高斯衰减评分计算
+// =============================================================================
+
+/**
+ * 计算单个问题的分数（0-100）
+ */
+export function calculateIssueScore(
+  type: PostureIssueType,
+  angle: number
+): PostureIssueScore {
+  const params = GAUSSIAN_PARAMS[type];
+  const deviation = Math.abs(angle - params.center);
+  const score = gaussianScore(angle, params.center, params.sigma);
+
+  // 根据视角确定该问题属于哪个视图
+  const frontViewTypes: PostureIssueType[] = [
+    'shoulderImbalance', 'pelvicTilt', 'kneeValgus',
+    'headOffset', 'centerOfGravityShift', 'forwardHead',
+  ];
+  const view: PoseView = frontViewTypes.includes(type) ? 'front' : 'side';
+
+  return {
+    type,
+    rawAngle: angle,
+    deviation,
+    gaussianScore: score,
+    view,
+  };
+}
+
+/**
+ * 按视图分组计算分数并归一化
+ */
+export function calculateNormalizedScores(issues: PostureIssue[]): {
+  frontViewScore: ViewNormalizedScore;
+  sideViewScore: ViewNormalizedScore;
+} {
+  const frontItems: PostureIssueScore[] = [];
+  const sideItems: PostureIssueScore[] = [];
+
+  for (const issue of issues) {
+    const itemScore = calculateIssueScore(issue.type, issue.angle);
+    if (itemScore.view === 'front') {
+      frontItems.push(itemScore);
+    } else {
+      sideItems.push(itemScore);
+    }
+  }
+
+  const frontAvg = frontItems.length > 0
+    ? frontItems.reduce((sum, item) => sum + item.gaussianScore, 0) / frontItems.length
+    : 100; // 无检测项时按满分处理
+
+  const sideAvg = sideItems.length > 0
+    ? sideItems.reduce((sum, item) => sum + item.gaussianScore, 0) / sideItems.length
+    : 100;
+
+  return {
+    frontViewScore: {
+      view: 'front',
+      items: frontItems,
+      normalizedScore: frontAvg,
+    },
+    sideViewScore: {
+      view: 'side',
+      items: sideItems,
+      normalizedScore: sideAvg,
+    },
+  };
+}
+
+/**
+ * 使用高斯衰减 + 按视图归一化计算总分
+ */
+export function calculatePostureScoreWithNormalization(
+  issues: PostureIssue[]
+): { finalScore: number; frontViewScore: ViewNormalizedScore; sideViewScore: ViewNormalizedScore; allScores: PostureIssueScore[] } {
+  const { frontViewScore, sideViewScore } = calculateNormalizedScores(issues);
+  const allScores = [...frontViewScore.items, ...sideViewScore.items];
+
+  const totalCount = frontViewScore.items.length + sideViewScore.items.length;
+
+  if (totalCount === 0) {
+    return {
+      finalScore: 100,
+      frontViewScore,
+      sideViewScore,
+      allScores,
+    };
+  }
+
+  // 加权平均
+  const frontWeighted = frontViewScore.normalizedScore * frontViewScore.items.length;
+  const sideWeighted = sideViewScore.normalizedScore * sideViewScore.items.length;
+  const finalScore = (frontWeighted + sideWeighted) / totalCount;
+
+  return {
+    finalScore,
+    frontViewScore,
+    sideViewScore,
+    allScores,
+  };
 }
