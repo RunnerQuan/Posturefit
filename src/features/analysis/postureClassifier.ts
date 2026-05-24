@@ -233,6 +233,11 @@ export function classifyPostureIssue(
 
 function getIssueLabel(type: PostureIssueType, severity: PostureSeverity, angle: number): string {
   const baseLabel = ISSUE_LABELS[type];
+
+  if (severity === 'undetected') {
+    return `${baseLabel} — 未检测到足够的关键点`;
+  }
+
   const displayValue = Math.abs(angle).toFixed(1);
 
   switch (severity) {
@@ -258,11 +263,10 @@ export const FRONT_VIEW_ISSUES: PostureIssueType[] = [
 
 // 侧面视角可检测的问题类型
 export const SIDE_VIEW_ISSUES: PostureIssueType[] = [
+  'forwardHead',
   'roundedShoulder',
   'hunchback',
   'kneeHyperextension',
-  'forwardHead',          // CVA requires side-view ear-shoulder geometry
-  'anteriorPelvicTilt',  // shoulder-hip-knee angle requires side view
 ];
 
 // 拍摄模式与可分析问题的映射（根据关键点可见性）
@@ -274,15 +278,21 @@ export const MODE_ANALYZABLE_ISSUES: Record<CaptureMode, PostureIssueType[]> = {
     'shoulderImbalance',
     'headOffset',
     'pelvicTilt',
+    'forwardHead',       // 侧面: 头前伸
+    'roundedShoulder',   // 侧面: 圆肩
   ],
   closeUp: [
     'shoulderImbalance',
     'headOffset',
+    'forwardHead',       // 侧面: 头前伸（仅需耳+肩）
+    // roundedShoulder: 需要髋部，closeUp 模式下无髋部，不检测
   ],
   sitting: [
     'shoulderImbalance',
     'headOffset',
     'pelvicTilt',
+    'forwardHead',       // 侧面: 头前伸
+    'roundedShoulder',   // 侧面: 圆肩
   ],
 };
 
@@ -306,8 +316,19 @@ export function classifyAllPostureIssues(
 
   for (const type of issueTypes) {
     const metricKey = getMetricKey(type);
-    const value = (metrics as Record<string, number>)[metricKey];
-    if (value !== undefined) {
+    const value = (metrics as Record<string, number | null>)[metricKey];
+
+    if (value === null) {
+      // 关键点不可见，无法计算该指标
+      issues.push({
+        type,
+        severity: 'undetected',
+        angle: 0,
+        threshold: 0,
+        label: getIssueLabel(type, 'undetected', 0),
+        view: view || 'front',
+      });
+    } else if (value !== undefined) {
       issues.push(classifyPostureIssue(type, value, thresholds, view || 'front'));
     }
   }
@@ -337,12 +358,13 @@ export function findPrimaryIssue(issues: PostureIssue[]): PostureIssueType | nul
     mild: 1,
     moderate: 2,
     severe: 3,
+    undetected: -1, // 未检测的不参与主要问题评选
   };
 
   let primaryIssue: PostureIssue | null = null;
 
   for (const issue of issues) {
-    if (issue.severity === 'normal') {
+    if (issue.severity === 'normal' || issue.severity === 'undetected') {
       continue;
     }
 
@@ -365,6 +387,7 @@ export function calculatePostureScore(issues: PostureIssue[]): number {
     mild: 15,
     moderate: 25,
     severe: 40,
+    undetected: 0, // 未检测的不扣分
   };
 
   let totalDeduction = 0;
@@ -396,7 +419,7 @@ export function calculateIssueScore(
   // 根据视角确定该问题属于哪个视图
   const frontViewTypes: PostureIssueType[] = [
     'shoulderImbalance', 'pelvicTilt', 'kneeValgus',
-    'headOffset', 'centerOfGravityShift', 'forwardHead',
+    'headOffset', 'centerOfGravityShift',
   ];
   const view: PoseView = frontViewTypes.includes(type) ? 'front' : 'side';
 

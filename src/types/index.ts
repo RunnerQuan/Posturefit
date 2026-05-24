@@ -102,19 +102,20 @@ export type PostureIssueType =
   | 'hunchback'            // 驼背倾向
   | 'kneeHyperextension';  // 膝超伸
 
-export type PostureSeverity = 'normal' | 'mild' | 'moderate' | 'severe';
+export type PostureSeverity = 'normal' | 'mild' | 'moderate' | 'severe' | 'undetected';
 
 // 体态角度指标（全部使用角度，单位：度）
+// nullable 字段表示关键点不可见时无法计算该指标
 export type PostureAngleMetrics = {
   // 正面视角指标
-  forwardHeadAngle: number;       // 头前伸角度 (CVA近似角)
+  forwardHeadAngle: number | null;       // 头前伸角度 (CVA近似角)
   shoulderImbalanceAngle: number;  // 高低肩角度 (atan2斜率)
   pelvicTiltAngle: number;         // 骨盆侧倾角度 (atan2斜率)
   kneeValgusAngle: number;         // 膝内扣角度 (FPPA)
   headOffsetAngle: number;         // 头部偏移角度
   centerOfGravityShiftAngle: number; // 重心偏移角度
-  // 侧面视角指标
-  roundedShoulderAngle: number;    // 圆肩角度
+  // 侧面视角指标（nullable: 关键点不可见时无法计算）
+  roundedShoulderAngle: number | null;    // 圆肩角度
   hunchbackAngle: number;          // 驼背倾向角度 (加权综合)
   kneeHyperextensionAngle: number; // 膝超伸角度
   anteriorTiltAngle: number;       // 骨盆前倾角度

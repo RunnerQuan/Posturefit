@@ -26,6 +26,8 @@ function getSeverityColor(severity: string): string {
       return 'text-orange-700 bg-orange-50 border border-orange-100';
     case 'severe':
       return 'text-red-700 bg-red-50 border border-red-100';
+    case 'undetected':
+      return 'text-gray-500 bg-gray-50 border border-dashed border-gray-300';
     default:
       return 'text-gray-700 bg-gray-50 border border-gray-100';
   }
@@ -42,6 +44,8 @@ function getSeverityIcon(severity: string) {
     case 'moderate':
     case 'severe':
       return <AlertTriangle className="w-4 h-4 text-orange-500" />;
+    case 'undetected':
+      return <Info className="w-4 h-4 text-gray-400" />;
     default:
       return <Info className="w-4 h-4 text-gray-500" />;
   }

@@ -1,4 +1,4 @@
-import type { PoseKeypoint33, BlazePoseLandmark, PoseKeypoint17, KeypointName, CaptureMode } from '../../types';
+import type { PoseKeypoint33, BlazePoseLandmark, PoseKeypoint17, KeypointName, CaptureMode, PoseView } from '../../types';
 
 // =============================================================================
 // MediaPipe BlazePose 33 点索引映射
@@ -269,7 +269,24 @@ export const SKELETON_CONNECTIONS: [KeypointName, KeypointName][] = [
   ['rightKnee', 'rightAnkle'],
 ];
 
-// Keypoint validation requirements by capture mode
+// 侧面视角的 required 关键点：根据 mode 不同，要求不同
+function getSideViewRequirements(mode: CaptureMode) {
+  const base = ['nose', 'left_shoulder', 'right_shoulder'];
+  const withHip = ['left_hip', 'right_hip'];
+
+  const messages: Record<CaptureMode, string> = {
+    closeUp: '请上传包含肩颈部位的侧面照片',
+    halfBody: '请上传包含肩部和髋部的侧面照片',
+    sitting: '请上传包含肩部和髋部的侧面照片',
+    fullBody: '请上传包含肩部和髋部的侧面照片',
+  };
+
+  if (mode === 'closeUp') {
+    return { required: base as BlazePoseLandmark[], optional: ['left_ear', 'right_ear'] as BlazePoseLandmark[], message: messages[mode] };
+  }
+  return { required: [...base, ...withHip] as BlazePoseLandmark[], optional: ['left_ear', 'right_ear'] as BlazePoseLandmark[], message: messages[mode] };
+}
+
 const MODE_REQUIREMENTS: Record<CaptureMode, { required: BlazePoseLandmark[]; optional: BlazePoseLandmark[]; message: string }> = {
   fullBody: {
     required: ['nose', 'left_shoulder', 'right_shoulder', 'left_hip', 'right_hip', 'left_knee', 'right_knee', 'left_ankle', 'right_ankle'],
@@ -357,11 +374,16 @@ export interface ValidationResult {
   missingKeypoints?: BlazePoseLandmark[];
 }
 
-export function validateKeypointsForMode(keypoints: PoseKeypoint33[], mode: CaptureMode): ValidationResult {
-  console.log('[DEBUG validateKeypointsForMode] 开始验证, mode:', mode);
+export function validateKeypointsForMode(
+  keypoints: PoseKeypoint33[],
+  mode: CaptureMode,
+  view?: PoseView
+): ValidationResult {
+  console.log('[DEBUG validateKeypointsForMode] 开始验证, mode:', mode, 'view:', view);
   console.log('[DEBUG validateKeypointsForMode] 传入的关键点数量:', keypoints.length);
 
-  const requirements = MODE_REQUIREMENTS[mode];
+  const requirements = view === 'side' ? getSideViewRequirements(mode) : MODE_REQUIREMENTS[mode];
+
   const validKeypoints = keypoints.filter(k => k.score >= 0.5);
   console.log('[DEBUG validateKeypointsForMode] 有效关键点数量(score>=0.5):', validKeypoints.length);
 
