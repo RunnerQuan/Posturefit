@@ -1,462 +1,580 @@
-import { useState, useCallback, useEffect } from 'react';
-import { CameraCapture } from './features/camera';
-import { usePoseDetection, validateKeypointsForMode, KEYPOINT_LABELS, MODE_MIN_KEYPOINTS } from './features/pose';
-import { SkeletonOverlay, analyzePose, combineAnalyses, CombinedAnalysisView } from './features/analysis';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowRight, RotateCcw, ShieldCheck } from 'lucide-react';
+import { STEP_ORDER, canEnterStep, getStepProgress } from './app/stepMachine';
 import { StepIndicator } from './components/StepIndicator';
 import { AnalysisLoader } from './components/AnalysisLoader';
-import { COACH_PROFILES, DEFAULT_PROFILE } from './data/demoProfiles';
-import type { CoachProfileKey } from './data/demoProfiles';
-import { Heart, Zap, Smile, ChevronRight } from 'lucide-react';
-import type { CaptureMode, PostureAnalysisResult, PostureSessionStep, ViewSelection, PoseView, CapturedPhoto, CoachStyle, CoachGender } from './types';
+import { ISSUE_LABELS } from './data/exercises';
+import { CameraCapture } from './features/camera';
+import { SkeletonOverlay, analyzePose, combineAnalyses, CombinedAnalysisView } from './features/analysis';
+import { usePoseDetection, validateKeypointsForMode, KEYPOINT_LABELS, MODE_MIN_KEYPOINTS } from './features/pose';
+import { CoachChat } from './features/chat/CoachChat';
+import { HistoryRail } from './features/history/HistoryRail';
+import { ProfileForm } from './features/onboarding/ProfileForm';
+import { generateTrainingPlan } from './features/plan/generateTrainingPlan';
+import { PlanView } from './features/plan/PlanView';
+import { createCoachClient } from './services/coach';
+import { createSession, loadAppState, saveAppState, updateSession } from './services/storage/sessionStorage';
+import { generateId } from './lib/ids';
+import { getCurrentISOString } from './lib/time';
+import type {
+  AppState,
+  CaptureMode,
+  CapturedPhoto,
+  CheckInFeedback,
+  CoachMessage,
+  CombinedAnalysisResult,
+  PoseView,
+  PostureAnalysisResult,
+  PostureSession,
+  PostureSessionStep,
+  UserProfile,
+  ViewSelection,
+} from './types';
 
-function App() {
-  const [currentStep, setCurrentStep] = useState<PostureSessionStep>('capture');
-  const [captureMode, setCaptureMode] = useState<CaptureMode>('fullBody');
-  const [viewSelection, setViewSelection] = useState<ViewSelection>('dual');
+function createEmptyAppState(): AppState {
+  return {
+    currentSessionId: null,
+    sessions: [],
+    schemaVersion: 2,
+  };
+}
 
-  // 拍摄状态
-  const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
+function getSingleAnalysis(session: PostureSession | null): PostureAnalysisResult | null {
+  return session?.analysis ?? session?.photos.find(photo => photo.analysis)?.analysis ?? null;
+}
+
+function getDisplayAnalysis(session: PostureSession | null): PostureAnalysisResult | CombinedAnalysisResult | null {
+  return session?.combinedAnalysis ?? getSingleAnalysis(session);
+}
+
+function shouldStartAnalysis(session: PostureSession | null): boolean {
+  if (!session || session.step !== 'analysis') {
+    return false;
+  }
+  return session.photos.length > 0 && session.photos.some(photo => !photo.analysis);
+}
+
+function getNextView(viewSelection: ViewSelection, currentCaptureView: PoseView | null): PoseView {
+  if (viewSelection === 'dual') {
+    return currentCaptureView === 'front' ? 'side' : 'front';
+  }
+  return viewSelection;
+}
+
+function getIssueLabel(issue: PostureAnalysisResult['primaryIssue']): string {
+  return issue ? ISSUE_LABELS[issue] : '体态维护';
+}
+
+function getUserFeedbackMessage(feedback: CheckInFeedback): CoachMessage {
+  return {
+    id: generateId(),
+    role: 'user',
+    content: feedback === 'completed' ? '做完了' : '太累了',
+    createdAt: getCurrentISOString(),
+  };
+}
+
+const coachClient = createCoachClient();
+
+const STEP_PATHS: Record<PostureSessionStep, string> = {
+  capture: '/capture',
+  analysis: '/analysis',
+  profile: '/profile',
+  plan: '/plan',
+  chat: '/chat',
+};
+
+function getStepFromPath(pathname: string): PostureSessionStep | null {
+  const segment = pathname.split('/').filter(Boolean)[0];
+  return STEP_ORDER.includes(segment as PostureSessionStep) ? (segment as PostureSessionStep) : null;
+}
+
+function getLatestAllowedStep(session: PostureSession | null): PostureSessionStep {
+  return [...STEP_ORDER].reverse().find(step => canEnterStep(session, step)) ?? 'capture';
+}
+
+function AppShell() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routeStep = getStepFromPath(location.pathname) ?? 'capture';
+  const [appState, setAppState] = useState<AppState>(() => {
+    try {
+      return loadAppState();
+    } catch {
+      return createEmptyAppState();
+    }
+  });
+  const currentSession = useMemo(
+    () => appState.sessions.find(session => session.id === appState.currentSessionId) ?? null,
+    [appState.currentSessionId, appState.sessions]
+  );
+  const currentStep = routeStep;
+  const [captureMode, setCaptureMode] = useState<CaptureMode>(currentSession?.captureMode ?? 'fullBody');
+  const [viewSelection, setViewSelection] = useState<ViewSelection>(currentSession?.viewSelection ?? 'dual');
   const [currentCaptureView, setCurrentCaptureView] = useState<PoseView | null>(null);
-
-  // 分析状态
-  const [frontAnalysis, setFrontAnalysis] = useState<PostureAnalysisResult | null>(null);
-  const [sideAnalysis, setSideAnalysis] = useState<PostureAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCoachWorking, setIsCoachWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // 教练选择状态
-  const [selectedCoachStyle, setSelectedCoachStyle] = useState<CoachStyle>(DEFAULT_PROFILE.coachStyle);
-  const [selectedCoachGender, setSelectedCoachGender] = useState<CoachGender>(DEFAULT_PROFILE.coachGender);
-
   const { detectPoseFromImage, isModelLoading } = usePoseDetection();
 
-  // 获取当前照片对应的图片URL
-  const getImageUrl = (view: PoseView): string => {
-    const photo = photos.find(p => p.view === view);
-    return photo?.imageUrl || '';
-  };
+  useEffect(() => {
+    saveAppState(appState);
+  }, [appState]);
 
-  // 处理拍摄
-  const handleCapture = useCallback((dataUrl: string, view: PoseView) => {
-    const newPhoto: CapturedPhoto = {
-      id: `${Date.now()}-${view}`,
-      view,
-      imageUrl: dataUrl,
-      capturedAt: new Date().toISOString(),
-    };
+  const persistSession = useCallback((session: PostureSession, preferences?: Partial<UserProfile>) => {
+    setAppState(previous => {
+      const sessions = previous.sessions.some(item => item.id === session.id)
+        ? previous.sessions.map(item => (item.id === session.id ? session : item))
+        : [session, ...previous.sessions];
 
-    setPhotos(prev => {
-      const filtered = prev.filter(p => p.view !== view);
-      return [...filtered, newPhoto];
+      return {
+        ...previous,
+        currentSessionId: session.id,
+        sessions,
+        preferences: preferences ? { ...previous.preferences, ...preferences } : previous.preferences,
+      };
     });
+  }, []);
 
-    if (viewSelection === 'dual' && view === 'front') {
-      setCurrentCaptureView('front');
-    } else if (viewSelection === 'dual' && view === 'side') {
-      setCurrentCaptureView('side');
-      setCurrentStep('analysis');
-    } else {
-      setCurrentStep('analysis');
+  const navigateToStep = useCallback(
+    (step: PostureSessionStep, replace = false) => {
+      navigate(STEP_PATHS[step], { replace });
+    },
+    [navigate]
+  );
+
+  useEffect(() => {
+    const pathStep = getStepFromPath(location.pathname);
+    if (!pathStep) {
+      navigateToStep('capture', true);
+      return;
     }
-  }, [viewSelection]);
+    if (!canEnterStep(currentSession, pathStep)) {
+      navigateToStep(getLatestAllowedStep(currentSession), true);
+    }
+  }, [currentSession, location.pathname, navigateToStep]);
 
-  const handleUpload = useCallback((dataUrl: string, view: PoseView) => {
-    handleCapture(dataUrl, view);
-  }, [handleCapture]);
+  useEffect(() => {
+    if (currentSession && canEnterStep(currentSession, currentStep) && currentSession.step !== currentStep) {
+      persistSession(updateSession(currentSession, { step: currentStep }));
+    }
+  }, [currentSession, currentStep, persistSession]);
 
-  // 重置当前拍摄
+  const moveToStep = useCallback(
+    (step: PostureSessionStep) => {
+      if (!canEnterStep(currentSession, step)) {
+        return;
+      }
+      if (currentSession) {
+        persistSession(updateSession(currentSession, { step }));
+      }
+      navigateToStep(step);
+    },
+    [currentSession, navigateToStep, persistSession]
+  );
+
+  const upsertCapturedPhoto = useCallback(
+    (dataUrl: string, view: PoseView, sourceType: 'camera' | 'upload') => {
+      const photo: CapturedPhoto = {
+        id: `${Date.now()}-${view}`,
+        view,
+        imageUrl: dataUrl,
+        capturedAt: getCurrentISOString(),
+      };
+      const baseSession = currentSession ?? createSession(sourceType, captureMode);
+      const photos = [...baseSession.photos.filter(item => item.view !== view), photo];
+      const nextStep = viewSelection === 'dual' && view === 'front' ? 'capture' : 'analysis';
+      const nextSession = updateSession(baseSession, {
+        sourceType,
+        captureMode,
+        viewSelection,
+        photos,
+        imageDataUrl: dataUrl,
+        step: nextStep,
+        analysis: undefined,
+        combinedAnalysis: undefined,
+        plan: undefined,
+        chatMessages: [],
+      });
+
+      setError(null);
+      setCurrentCaptureView(viewSelection === 'dual' ? view : null);
+      persistSession(nextSession);
+      navigateToStep(nextStep);
+    },
+    [captureMode, currentSession, navigateToStep, persistSession, viewSelection]
+  );
+
+  const handleCapture = useCallback(
+    (dataUrl: string, explicitView?: PoseView) => {
+      const view = explicitView ?? getNextView(viewSelection, currentCaptureView);
+      upsertCapturedPhoto(dataUrl, view, 'camera');
+    },
+    [currentCaptureView, upsertCapturedPhoto, viewSelection]
+  );
+
+  const handleUpload = useCallback(
+    (dataUrl: string, explicitView?: PoseView) => {
+      const view = explicitView ?? getNextView(viewSelection, currentCaptureView);
+      upsertCapturedPhoto(dataUrl, view, 'upload');
+    },
+    [currentCaptureView, upsertCapturedPhoto, viewSelection]
+  );
+
   const handleResetCapture = useCallback(() => {
-    if (viewSelection === 'dual' && currentCaptureView === 'front') {
-      setPhotos(prev => prev.filter(p => p.view !== 'front'));
-      setCurrentCaptureView(null);
+    if (!currentSession || viewSelection !== 'dual' || currentCaptureView !== 'front') {
+      return;
     }
-  }, [viewSelection, currentCaptureView]);
+    const nextSession = updateSession(currentSession, {
+      photos: currentSession.photos.filter(photo => photo.view !== 'front'),
+      imageDataUrl: undefined,
+      step: 'capture',
+    });
+    setCurrentCaptureView(null);
+    persistSession(nextSession);
+  }, [currentCaptureView, currentSession, persistSession, viewSelection]);
 
-  // 执行分析
-  const performAnalysis = useCallback(async (photo: CapturedPhoto) => {
-    setIsAnalyzing(true);
-    setError(null);
-
-    try {
-      console.log('[DEBUG] 开始分析照片:', photo.view, '拍摄模式:', captureMode);
-
-      const minKeypointCount = MODE_MIN_KEYPOINTS[captureMode];
-      console.log('[DEBUG] 最少需要关键点数量:', minKeypointCount);
-
-      const keypoints = await detectPoseFromImage(photo.imageUrl, minKeypointCount);
-      console.log('[DEBUG] 检测到的关键点数量:', keypoints.length);
-      console.log('[DEBUG] 关键点详情:', keypoints.map(k => `${k.name}: score=${k.score?.toFixed(2)}`).join(', '));
-
-      const validation = validateKeypointsForMode(keypoints, captureMode);
-      console.log('[DEBUG] 验证结果:', validation);
-
-      if (!validation.isValid) {
-        const missingLabels = validation.missingKeypoints?.map(k => KEYPOINT_LABELS[k]).join('、') || '';
-        const errorMsg = `${validation.message}\n缺失关键点：${missingLabels}`;
-        console.log('[DEBUG] 设置错误信息:', errorMsg);
-        setError(errorMsg);
-        setIsAnalyzing(false);
+  const performAnalysis = useCallback(
+    async (session: PostureSession) => {
+      const photo = session.photos.find(item => !item.analysis);
+      if (!photo) {
         return;
       }
 
-      const result = analyzePose(keypoints, {
-        view: photo.view,
-        captureMode: captureMode
-      });
-      console.log('[DEBUG] 分析结果:', { score: result.score, issues: result.issues.length });
+      setIsAnalyzing(true);
+      setError(null);
 
-      if (photo.view === 'front') {
-        setFrontAnalysis(result);
-      } else {
-        setSideAnalysis(result);
+      try {
+        const minKeypointCount = MODE_MIN_KEYPOINTS[session.captureMode];
+        const keypoints = await detectPoseFromImage(photo.imageUrl, minKeypointCount);
+        const validation = validateKeypointsForMode(keypoints, session.captureMode);
+
+        if (!validation.isValid) {
+          const missingLabels = validation.missingKeypoints?.map(keypoint => KEYPOINT_LABELS[keypoint]).join('、') || '';
+          setError(`${validation.message}${missingLabels ? `\n缺失关键点：${missingLabels}` : ''}`);
+          return;
+        }
+
+        const result = analyzePose(keypoints, {
+          view: photo.view,
+          captureMode: session.captureMode,
+        });
+        const photos = session.photos.map(item => (item.id === photo.id ? { ...item, analysis: result } : item));
+        const analyzedPhotos = photos.filter(item => item.analysis);
+        const frontAnalysis = photos.find(item => item.view === 'front')?.analysis ?? null;
+        const sideAnalysis = photos.find(item => item.view === 'side')?.analysis ?? null;
+        const hasAllRequiredAnalysis =
+          session.viewSelection === 'dual'
+            ? Boolean(frontAnalysis || sideAnalysis) && analyzedPhotos.length >= Math.min(2, photos.length)
+            : analyzedPhotos.length >= 1;
+        const combinedAnalysis = hasAllRequiredAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : session.combinedAnalysis;
+        const singleAnalysis = result;
+
+        persistSession(updateSession(session, {
+          photos,
+          analysis: singleAnalysis,
+          combinedAnalysis,
+          step: 'analysis',
+        }));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '分析失败，请换一张清晰照片再试');
+      } finally {
+        setIsAnalyzing(false);
       }
+    },
+    [detectPoseFromImage, persistSession]
+  );
 
-      setPhotos(prev => prev.map(p =>
-        p.id === photo.id ? { ...p, analysis: result } : p
-      ));
-    } catch (err) {
-      console.error('[DEBUG] 分析失败:', err);
-      setError(err instanceof Error ? err.message : '分析失败');
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [detectPoseFromImage, captureMode]);
-
-  // 当进入分析步骤时，分析所有照片
   useEffect(() => {
-    if (currentStep === 'analysis') {
-      const unanalyzedPhotos = photos.filter(p => !p.analysis);
-      if (unanalyzedPhotos.length > 0) {
-        performAnalysis(unanalyzedPhotos[0]);
-      }
+    const session = currentSession;
+    if (session && shouldStartAnalysis(session) && !isAnalyzing) {
+      void performAnalysis(session);
     }
-  }, [currentStep, photos, performAnalysis]);
+  }, [currentSession, isAnalyzing, performAnalysis]);
 
-  // 重试
-  const handleRetry = () => {
-    setPhotos([]);
-    setFrontAnalysis(null);
-    setSideAnalysis(null);
+  const handleRetry = useCallback(() => {
+    setAppState(previous => ({ ...previous, currentSessionId: null }));
     setCurrentCaptureView(null);
     setError(null);
-    setCurrentStep('capture');
-  };
+    navigateToStep('capture');
+  }, [navigateToStep]);
 
-  // 计算合并分析结果
-  const combinedResult = (frontAnalysis || sideAnalysis)
-    ? combineAnalyses(frontAnalysis, sideAnalysis)
-    : null;
+  const handleProfileSubmit = useCallback(
+    async (profile: UserProfile) => {
+      if (!currentSession) {
+        return;
+      }
+      const analysis = getSingleAnalysis(currentSession);
+      const planSource = getDisplayAnalysis(currentSession);
+      if (!analysis || !planSource) {
+        return;
+      }
 
-  // 是否显示双视角模式
-  const showDualViews = viewSelection === 'dual' && photos.length >= 2;
+      setIsCoachWorking(true);
+      setError(null);
 
-  // 当前选中教练
-  const currentCoachKey: CoachProfileKey = `${selectedCoachStyle}_${selectedCoachGender}`;
-  const currentCoach = COACH_PROFILES[currentCoachKey];
+      try {
+        const plan = generateTrainingPlan(currentSession.id, planSource, profile.bodyState);
+        const coachMessage = await coachClient.generatePlanMessage({ analysis, profile, plan });
+        const nextSession = updateSession(currentSession, {
+          profile,
+          plan,
+          chatMessages: [coachMessage],
+          step: 'plan',
+        });
+        persistSession(nextSession, profile);
+        navigateToStep('plan');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '教练生成计划失败');
+      } finally {
+        setIsCoachWorking(false);
+      }
+    },
+    [currentSession, navigateToStep, persistSession]
+  );
 
-  // 确认教练选择，进入计划步骤
-  const handleConfirmCoach = () => {
-    setCurrentStep('plan');
-  };
+  const handleFeedback = useCallback(
+    async (feedback: CheckInFeedback) => {
+      if (!currentSession?.profile || !currentSession.plan) {
+        return;
+      }
+
+      setIsCoachWorking(true);
+      setError(null);
+      const userMessage = getUserFeedbackMessage(feedback);
+      const messagesWithUser = [...currentSession.chatMessages, userMessage];
+      const sessionWithUser = updateSession(currentSession, { chatMessages: messagesWithUser, step: 'chat' });
+      persistSession(sessionWithUser);
+
+      try {
+        const coachMessage = await coachClient.respondToFeedback({
+          profile: currentSession.profile,
+          plan: currentSession.plan,
+          feedback,
+          previousMessages: messagesWithUser,
+        });
+        persistSession(updateSession(sessionWithUser, { chatMessages: [...messagesWithUser, coachMessage] }));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '教练反馈失败');
+      } finally {
+        setIsCoachWorking(false);
+      }
+    },
+    [currentSession, persistSession]
+  );
+
+  const handleSelectHistory = useCallback(
+    (sessionId: string) => {
+      const session = appState.sessions.find(item => item.id === sessionId);
+      if (!session) {
+        return;
+      }
+      setAppState(previous => ({ ...previous, currentSessionId: sessionId }));
+      setCaptureMode(session.captureMode);
+      setViewSelection(session.viewSelection);
+      setCurrentCaptureView(null);
+      setError(null);
+      navigateToStep(session.step);
+    },
+    [appState.sessions, navigateToStep]
+  );
+
+  const photos = currentSession?.photos ?? [];
+  const frontAnalysis = photos.find(photo => photo.view === 'front')?.analysis ?? null;
+  const sideAnalysis = photos.find(photo => photo.view === 'side')?.analysis ?? null;
+  const combinedResult = currentSession?.combinedAnalysis ?? (frontAnalysis || sideAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : null);
+  const displayAnalysis = getDisplayAnalysis(currentSession);
+  const primaryIssue = displayAnalysis?.primaryIssue ?? null;
+  const score = 'score' in (displayAnalysis ?? {}) ? displayAnalysis?.score : undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-cyan-50">
-      <header className="bg-white/80 backdrop-blur-sm shadow-card">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+      <header className="bg-white/85 shadow-card backdrop-blur-sm">
+        <div className="mx-auto max-w-6xl px-4 py-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h1 className="text-xl font-semibold text-primary-700 font-serif">PostureFit</h1>
-              <p className="text-xs text-primary-500 mt-0.5">AI体态矫正运动搭子</p>
+              <h1 className="font-serif text-2xl font-semibold text-primary-700">PostureFit</h1>
+              <p className="mt-0.5 text-sm text-primary-500">AI体态矫正运动搭子</p>
             </div>
-            <StepIndicator currentStep={currentStep} />
+            <div className="flex flex-col gap-2 lg:items-end">
+              <StepIndicator
+                currentStep={currentStep}
+                canEnterStep={step => canEnterStep(currentSession, step)}
+                onStepSelect={moveToStep}
+              />
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-primary-100 lg:w-80">
+                <div className="h-full rounded-full bg-primary-500 transition-all" style={{ width: `${getStepProgress(currentStep)}%` }} />
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {currentStep === 'capture' && (
-          <div className="max-w-2xl mx-auto">
-            <CameraCapture
-              onCapture={handleCapture}
-              selectedMode={captureMode}
-              onModeChange={setCaptureMode}
-              onUploadImage={handleUpload}
-              viewSelection={viewSelection}
-              onViewSelectionChange={setViewSelection}
-              currentCaptureView={viewSelection === 'dual' ? currentCaptureView : null}
-              onResetCapture={handleResetCapture}
-              showViewSelection={true}
-            />
-          </div>
-        )}
+      <main className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <section className="min-w-0">
+          {error && (
+            <div className="mb-5 rounded-2xl border border-red-100 bg-white p-4 text-sm leading-6 text-red-600 shadow-card">
+              {error}
+            </div>
+          )}
 
-        {currentStep === 'analysis' && (
-          <div className="space-y-6">
-            {isAnalyzing || isModelLoading ? (
-              <div className="max-w-lg mx-auto bg-white rounded-2xl shadow-card p-4">
-                <AnalysisLoader
-                  message={isModelLoading ? '正在加载AI模型...' : undefined}
-                />
-              </div>
-            ) : error ? (
-              <div className="max-w-2xl mx-auto space-y-4">
-                <div className="bg-white border border-red-100 rounded-2xl shadow-card p-6 text-center">
-                  <p className="text-red-600 mb-4">{error}</p>
-                  <button
-                    onClick={handleRetry}
-                    className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium transition-colors cursor-pointer"
-                  >
-                    重新拍摄
-                  </button>
+          {currentStep === 'capture' && (
+            <section className="rounded-2xl bg-white p-5 shadow-card">
+              <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-primary-600">第一步</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-gray-900">拍摄体态照片</h2>
                 </div>
+                <p className="max-w-xl text-sm leading-6 text-gray-500">建议使用双视角，正面和侧面都会进入同一分析管线。</p>
               </div>
-            ) : (frontAnalysis || sideAnalysis) ? (
-              <div className="space-y-6">
-                {showDualViews ? (
-                  <div className="max-w-5xl mx-auto">
+              <CameraCapture
+                onCapture={handleCapture}
+                selectedMode={captureMode}
+                onModeChange={setCaptureMode}
+                onUploadImage={handleUpload}
+                viewSelection={viewSelection}
+                onViewSelectionChange={setViewSelection}
+                currentCaptureView={viewSelection === 'dual' ? currentCaptureView : null}
+                onResetCapture={handleResetCapture}
+                showViewSelection
+              />
+            </section>
+          )}
+
+          {currentStep === 'analysis' && (
+            <section className="space-y-6">
+              {isAnalyzing || isModelLoading ? (
+                <div className="mx-auto max-w-lg rounded-2xl bg-white p-4 shadow-card">
+                  <AnalysisLoader message={isModelLoading ? '正在加载AI模型...' : '正在分析体态...'} />
+                </div>
+              ) : combinedResult ? (
+                <>
+                  {currentSession?.viewSelection === 'dual' && photos.length >= 2 ? (
                     <CombinedAnalysisView
                       frontAnalysis={frontAnalysis}
                       sideAnalysis={sideAnalysis}
                       combinedResult={combinedResult}
-                      showDualViews={true}
-                      frontImageUrl={getImageUrl('front')}
-                      sideImageUrl={getImageUrl('side')}
+                      showDualViews
+                      frontImageUrl={photos.find(photo => photo.view === 'front')?.imageUrl ?? ''}
+                      sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
                     />
-                  </div>
-                ) : (
-                  <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-card p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-base font-medium text-gray-700">
-                        {viewSelection === 'front' ? '正面' : '侧面'}分析结果
-                      </h3>
-                      {combinedResult && (
+                  ) : (
+                    <div className="mx-auto max-w-2xl rounded-2xl bg-white p-6 shadow-card">
+                      <div className="mb-4 flex items-center justify-between">
+                        <h3 className="text-base font-medium text-gray-700">分析结果</h3>
                         <div className="text-2xl font-bold text-gray-900">
                           {combinedResult.score}
-                          <span className="text-sm font-normal text-gray-400 ml-1">分</span>
+                          <span className="ml-1 text-sm font-normal text-gray-400">分</span>
                         </div>
-                      )}
+                      </div>
+                      <div className="mb-6 overflow-hidden rounded-2xl bg-gray-900">
+                        <SkeletonOverlay
+                          result={getSingleAnalysis(currentSession)!}
+                          imageUrl={photos[0]?.imageUrl ?? ''}
+                          className="max-h-[400px]"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        {combinedResult.allIssues.map((issue, index) => (
+                          <div key={`${issue.type}-${index}`} className="rounded-xl bg-primary-50 px-4 py-3 text-sm text-primary-700">
+                            {issue.label}
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                  )}
 
-                    <div className="bg-gray-900 rounded-2xl overflow-hidden mb-6">
-                      <SkeletonOverlay
-                        result={(viewSelection === 'front' ? frontAnalysis : sideAnalysis)!}
-                        imageUrl={getImageUrl(viewSelection === 'front' ? 'front' : 'side')}
-                        className="max-h-[400px]"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      {combinedResult?.allIssues.map((issue, index) => (
-                        <div
-                          key={`${issue.type}-${index}`}
-                          className={`px-4 py-3 rounded-xl ${
-                            issue.severity === 'normal'
-                              ? 'bg-green-50 text-green-700'
-                              : issue.severity === 'mild'
-                              ? 'bg-yellow-50 text-yellow-700'
-                              : issue.severity === 'moderate'
-                              ? 'bg-orange-50 text-orange-700'
-                              : 'bg-red-50 text-red-700'
-                          }`}
-                        >
-                          {issue.label}
-                        </div>
-                      ))}
-                    </div>
+                  <div className="mx-auto flex max-w-2xl flex-col gap-3">
+                    <button
+                      type="button"
+                      onClick={() => moveToStep('profile')}
+                      className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary-500 px-6 py-4 text-base font-medium text-white transition hover:bg-primary-600"
+                    >
+                      继续选择教练
+                      <ArrowRight className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gray-50 px-6 py-3 font-medium text-gray-600 transition hover:bg-gray-100"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      重新拍摄
+                    </button>
                   </div>
-                )}
+                </>
+              ) : null}
+            </section>
+          )}
 
-                <div className="max-w-2xl mx-auto flex flex-col gap-3">
-                  <button
-                    onClick={() => setCurrentStep('profile')}
-                    className="w-full px-6 py-4 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium text-base transition-colors cursor-pointer"
-                  >
-                    继续选择教练
-                  </button>
-                  <button
-                    onClick={handleRetry}
-                    className="w-full px-6 py-3 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl font-medium transition-colors cursor-pointer"
-                  >
-                    重新拍摄
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        )}
+          {currentStep === 'profile' && (
+            <ProfileForm
+              initialProfile={currentSession?.profile ?? appState.preferences}
+              onSubmit={handleProfileSubmit}
+              onBack={() => moveToStep('analysis')}
+              isSubmitting={isCoachWorking}
+            />
+          )}
 
-        {currentStep === 'profile' && (
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-white rounded-2xl shadow-card p-6">
-              {/* Section title */}
-              <h2 className="text-lg font-semibold text-gray-800 mb-1">选择你的专属教练</h2>
-              <p className="text-sm text-gray-400 mb-6">根据你的偏好匹配合适的训练风格</p>
+          {currentStep === 'plan' && currentSession?.plan && (
+            <PlanView
+              plan={currentSession.plan}
+              coachMessage={currentSession.chatMessages.find(message => message.role === 'assistant')}
+              onStartTraining={() => moveToStep('chat')}
+              onBack={() => moveToStep('profile')}
+            />
+          )}
 
-              {/* Style selection */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-500 mb-3">风格倾向</h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {/* Encouraging */}
-                  <button
-                    onClick={() => setSelectedCoachStyle('encouraging')}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
-                      selectedCoachStyle === 'encouraging'
-                        ? 'border-primary-400 bg-primary-50/60'
-                        : 'border-gray-100 hover:border-primary-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      selectedCoachStyle === 'encouraging' ? 'bg-pink-100 text-pink-500' : 'bg-gray-100 text-gray-400'
-                    }`}>
-                      <Heart className="w-5 h-5" />
-                    </div>
-                    <span className={`text-sm font-medium ${selectedCoachStyle === 'encouraging' ? 'text-primary-700' : 'text-gray-600'}`}>鼓励型</span>
-                    <span className="text-xs text-gray-400 text-center leading-snug">温柔陪伴<br/>耐心引导</span>
-                  </button>
+          {currentStep === 'chat' && currentSession?.plan && (
+            <CoachChat
+              messages={currentSession.chatMessages}
+              plan={currentSession.plan}
+              isResponding={isCoachWorking}
+              onFeedback={handleFeedback}
+              onRestart={handleRetry}
+            />
+          )}
+        </section>
 
-                  {/* Strict */}
-                  <button
-                    onClick={() => setSelectedCoachStyle('strict')}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
-                      selectedCoachStyle === 'strict'
-                        ? 'border-primary-400 bg-primary-50/60'
-                        : 'border-gray-100 hover:border-primary-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      selectedCoachStyle === 'strict' ? 'bg-blue-100 text-blue-500' : 'bg-gray-100 text-gray-400'
-                    }`}>
-                      <Zap className="w-5 h-5" />
-                    </div>
-                    <span className={`text-sm font-medium ${selectedCoachStyle === 'strict' ? 'text-primary-700' : 'text-gray-600'}`}>严厉型</span>
-                    <span className="text-xs text-gray-400 text-center leading-snug">高效专业<br/>结果导向</span>
-                  </button>
-
-                  {/* Humorous */}
-                  <button
-                    onClick={() => setSelectedCoachStyle('humorous')}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
-                      selectedCoachStyle === 'humorous'
-                        ? 'border-primary-400 bg-primary-50/60'
-                        : 'border-gray-100 hover:border-primary-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      selectedCoachStyle === 'humorous' ? 'bg-amber-100 text-amber-500' : 'bg-gray-100 text-gray-400'
-                    }`}>
-                      <Smile className="w-5 h-5" />
-                    </div>
-                    <span className={`text-sm font-medium ${selectedCoachStyle === 'humorous' ? 'text-primary-700' : 'text-gray-600'}`}>幽默型</span>
-                    <span className="text-xs text-gray-400 text-center leading-snug">轻松有趣<br/>快乐健身</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Gender selection */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-500 mb-3">教练性别</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {(['female', 'male'] as CoachGender[]).map(gender => {
-                    const coach = COACH_PROFILES[`${selectedCoachStyle}_${gender}`];
-                    return (
-                      <button
-                        key={gender}
-                        onClick={() => setSelectedCoachGender(gender)}
-                        className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all cursor-pointer ${
-                          selectedCoachGender === gender
-                            ? 'border-primary-400 bg-primary-50/60'
-                            : 'border-gray-100 hover:border-primary-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${coach.avatarBg} ${coach.avatarColor}`}>
-                          {coach.initials}
-                        </div>
-                        <div className="text-left">
-                          <p className={`text-sm font-medium ${selectedCoachGender === gender ? 'text-primary-700' : 'text-gray-700'}`}>
-                            {gender === 'female' ? '女教练' : '男教练'}
-                          </p>
-                          <p className="text-xs text-gray-400">{coach.name}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Selected coach confirmation */}
-              <div className="mb-6 bg-primary-50/70 rounded-2xl p-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-semibold ${currentCoach.avatarBg} ${currentCoach.avatarColor}`}>
-                    {currentCoach.initials}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800 font-serif">{currentCoach.name}</p>
-                    <p className="text-xs text-gray-500">{currentCoach.bio}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={handleConfirmCoach}
-                  className="w-full px-6 py-4 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium text-base transition-colors cursor-pointer flex items-center justify-center gap-2"
-                >
-                  确认选择
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => setCurrentStep('capture')}
-                  className="w-full px-6 py-3 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl font-medium transition-colors cursor-pointer"
-                >
-                  上一步
-                </button>
-              </div>
+        <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+          <section className="rounded-2xl bg-white p-5 shadow-card">
+            <div className="mb-4 flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-primary-500" />
+              <h2 className="text-base font-semibold text-gray-800">当前状态</h2>
             </div>
-          </div>
-        )}
-
-        {currentStep === 'plan' && (
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-white rounded-2xl shadow-card p-6">
-              <p className="text-gray-500 text-center mb-6">
-                训练计划展示（由前端B实现）
-              </p>
-              <button
-                onClick={() => setCurrentStep('chat')}
-                className="w-full px-6 py-4 bg-primary-500 hover:bg-primary-600 text-white rounded-2xl font-medium text-base transition-colors cursor-pointer"
-              >
-                开始训练
-              </button>
+            <div className="space-y-3 text-sm text-gray-600">
+              <p>步骤：{STEP_ORDER.indexOf(currentStep) + 1} / {STEP_ORDER.length}</p>
+              <p>主要问题：{getIssueLabel(primaryIssue)}</p>
+              {typeof score === 'number' && <p>体态评分：{score}</p>}
+              <p>教练通道：{import.meta.env.VITE_COZE_ENABLED === 'true' ? 'Coze优先，失败回退Mock' : 'Mock演示'}</p>
             </div>
-          </div>
-        )}
+          </section>
 
-        {currentStep === 'chat' && (
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-white rounded-2xl shadow-card p-6">
-              <p className="text-gray-500 text-center mb-6">
-                聊天打卡功能（由前端B实现）
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <button className="px-6 py-4 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-medium transition-colors cursor-pointer">
-                  做完了
-                </button>
-                <button className="px-6 py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-medium transition-colors cursor-pointer">
-                  太累了
-                </button>
-              </div>
-              <button
-                onClick={() => setCurrentStep('capture')}
-                className="w-full mt-4 px-6 py-3 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl font-medium transition-colors cursor-pointer"
-              >
-                重新开始
-              </button>
-            </div>
-          </div>
-        )}
+          <HistoryRail
+            sessions={appState.sessions}
+            currentSessionId={appState.currentSessionId}
+            onSelect={handleSelectHistory}
+          />
+        </div>
       </main>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/capture" replace />} />
+        <Route path="/capture" element={<AppShell />} />
+        <Route path="/analysis" element={<AppShell />} />
+        <Route path="/profile" element={<AppShell />} />
+        <Route path="/plan" element={<AppShell />} />
+        <Route path="/chat" element={<AppShell />} />
+        <Route path="*" element={<Navigate to="/capture" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

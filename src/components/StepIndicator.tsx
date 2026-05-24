@@ -12,9 +12,11 @@ const STEP_ORDER: PostureSessionStep[] = ['capture', 'analysis', 'profile', 'pla
 
 interface StepIndicatorProps {
   currentStep: PostureSessionStep;
+  canEnterStep?: (step: PostureSessionStep) => boolean;
+  onStepSelect?: (step: PostureSessionStep) => void;
 }
 
-export function StepIndicator({ currentStep }: StepIndicatorProps) {
+export function StepIndicator({ currentStep, canEnterStep, onStepSelect }: StepIndicatorProps) {
   const currentIndex = STEP_ORDER.indexOf(currentStep);
 
   return (
@@ -22,27 +24,29 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
       {STEPS.map((step, index) => {
         const isCompleted = index < currentIndex;
         const isActive = index === currentIndex;
+        const isEnabled = canEnterStep ? canEnterStep(step.key) : true;
 
         return (
           <div key={step.key} className="flex items-center">
-            {/* Step label */}
             <button
-              disabled
+              type="button"
+              disabled={!isEnabled}
+              aria-current={isActive ? 'step' : undefined}
+              onClick={() => onStepSelect?.(step.key)}
               className={`
                 flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all duration-200 cursor-default
+                ${isEnabled ? 'cursor-pointer hover:bg-primary-50' : 'cursor-not-allowed opacity-50'}
                 ${isActive ? 'text-primary-600' : isCompleted ? 'text-primary-500' : 'text-gray-400'}
               `}
             >
               <span className={`text-sm font-medium ${isActive ? 'font-semibold' : ''}`}>
                 {step.label}
               </span>
-              {/* Active underline indicator */}
               {isActive && (
                 <span className="h-0.5 w-full bg-primary-500 rounded-full" />
               )}
             </button>
 
-            {/* Connector arrow */}
             {index < STEPS.length - 1 && (
               <div className="flex items-center px-1">
                 <svg
