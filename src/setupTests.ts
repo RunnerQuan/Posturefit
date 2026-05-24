@@ -17,7 +17,3 @@ Object.defineProperty(window, 'matchMedia', {
   },
 })
 
-// Mock vi from vitest
-declare const vi: {
-  fn(): () => void;
-}
