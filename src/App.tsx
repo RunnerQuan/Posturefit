@@ -7,7 +7,7 @@ import { AnalysisLoader } from './components/AnalysisLoader';
 import { ISSUE_LABELS } from './data/exercises';
 import { CameraCapture } from './features/camera';
 import { SkeletonOverlay, analyzePose, combineAnalyses, CombinedAnalysisView } from './features/analysis';
-import { usePoseDetection, validateKeypointsForMode, KEYPOINT_LABELS, MODE_MIN_KEYPOINTS } from './features/pose';
+import { usePoseDetection, validateKeypointsForMode, KEYPOINT_LABELS_33, MODE_MIN_KEYPOINTS } from './features/pose';
 import { CoachChat } from './features/chat/CoachChat';
 import { HistoryRail } from './features/history/HistoryRail';
 import { ProfileForm } from './features/onboarding/ProfileForm';
@@ -251,7 +251,7 @@ function AppShell() {
         const validation = validateKeypointsForMode(keypoints, session.captureMode);
 
         if (!validation.isValid) {
-          const missingLabels = validation.missingKeypoints?.map(keypoint => KEYPOINT_LABELS[keypoint]).join('、') || '';
+          const missingLabels = validation.missingKeypoints?.map(keypoint => KEYPOINT_LABELS_33[keypoint]).join('、') || '';
           setError(`${validation.message}${missingLabels ? `\n缺失关键点：${missingLabels}` : ''}`);
           return;
         }

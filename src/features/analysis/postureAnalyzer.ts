@@ -114,6 +114,7 @@ export function createEmptyAnalysisResult(view: PoseView = 'front'): PostureAnal
       roundedShoulderAngle: 0,
       shoulderImbalanceAngle: 0,
       pelvicTiltAngle: 0,
+      anteriorTiltAngle: 0,
       kneeValgusAngle: 0,
       headOffsetAngle: 0,
       centerOfGravityShiftAngle: 0,

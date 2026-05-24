@@ -106,6 +106,7 @@ describe('classifyAllPostureIssues', () => {
       roundedShoulderAngle: 35,
       shoulderImbalanceAngle: 8,
       pelvicTiltAngle: 8,
+      anteriorTiltAngle: 18,
       kneeValgusAngle: 12,
       headOffsetAngle: 6,
       centerOfGravityShiftAngle: 6,

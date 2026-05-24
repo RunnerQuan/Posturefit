@@ -15,6 +15,8 @@ export interface PostureThresholds {
   shoulderImbalance: { normal: number; mild: number; moderate: number };
   // 骨盆侧倾角度
   pelvicTilt: { normal: number; mild: number; moderate: number };
+  // 骨盆前倾角度
+  anteriorPelvicTilt: { normal: number; mild: number; moderate: number };
   // 膝内扣角度（FPPA偏差）
   kneeValgus: { normal: number; mild: number; moderate: number };
   // 头部偏移角度
@@ -37,6 +39,8 @@ export const DEFAULT_THRESHOLDS: PostureThresholds = {
   shoulderImbalance: { normal: 2, mild: 5, moderate: 12 },
   // 骨盆侧倾：技术文档 6.5 节建议 <2° 正常, 2-5° 轻度, >5° 明显风险
   pelvicTilt: { normal: 2, mild: 5, moderate: 12 },
+  // 骨盆前倾：骨盆前倾角度 > 20° 视为明显异常
+  anteriorPelvicTilt: { normal: 10, mild: 15, moderate: 20 },
   // 膝内扣
   kneeValgus: { normal: 5, mild: 10, moderate: 15 },
   // 头部偏移：技术文档 6.7 节建议 <3° 正常, 3-5° 轻度, >5° 明显
@@ -91,6 +95,10 @@ function classifyShoulderImbalanceSeverity(angle: number, thresholds: PostureThr
 
 function classifyPelvicTiltSeverity(angle: number, thresholds: PostureThresholds): PostureSeverity {
   return classifyAngleBasedSeverity(angle, thresholds.pelvicTilt);
+}
+
+function classifyAnteriorPelvicTiltSeverity(angle: number, thresholds: PostureThresholds): PostureSeverity {
+  return classifyAngleBasedSeverity(angle, thresholds.anteriorPelvicTilt);
 }
 
 function classifyKneeValgusSeverity(angle: number, thresholds: PostureThresholds): PostureSeverity {
@@ -149,6 +157,10 @@ export function classifyPostureIssue(
     case 'pelvicTilt':
       severity = classifyPelvicTiltSeverity(angle, thresholds);
       threshold = thresholds.pelvicTilt.mild;
+      break;
+    case 'anteriorPelvicTilt':
+      severity = classifyAnteriorPelvicTiltSeverity(angle, thresholds);
+      threshold = thresholds.anteriorPelvicTilt.mild;
       break;
     case 'kneeValgus':
       severity = classifyKneeValgusSeverity(angle, thresholds);
@@ -277,6 +289,7 @@ function getMetricKey(type: PostureIssueType): string {
     roundedShoulder: 'roundedShoulderAngle',
     shoulderImbalance: 'shoulderImbalanceAngle',
     pelvicTilt: 'pelvicTiltAngle',
+    anteriorPelvicTilt: 'anteriorTiltAngle',
     kneeValgus: 'kneeValgusAngle',
     headOffset: 'headOffsetAngle',
     centerOfGravityShift: 'centerOfGravityShiftAngle',

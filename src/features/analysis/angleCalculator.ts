@@ -89,6 +89,37 @@ export function calculatePelvicTiltAngle(keypoints: PoseKeypoint33[]): number {
 }
 
 /**
+ * 骨盆前倾角度：侧面视角
+ * 计算肩部中点、髋部中点和膝部中点的角度
+ * 正值表示骨盆前倾，负值表示骨盆后倾
+ */
+export function calculateAnteriorPelvicTiltAngle(keypoints: PoseKeypoint33[]): number {
+  const leftShoulder = getPoint(keypoints, 'left_shoulder');
+  const rightShoulder = getPoint(keypoints, 'right_shoulder');
+  const leftHip = getPoint(keypoints, 'left_hip');
+  const rightHip = getPoint(keypoints, 'right_hip');
+  const leftKnee = getPoint(keypoints, 'left_knee');
+  const rightKnee = getPoint(keypoints, 'right_knee');
+
+  if (!leftShoulder || !rightShoulder || !leftHip || !rightHip || !leftKnee || !rightKnee) {
+    return 0;
+  }
+
+  // 计算中点
+  const shoulderMid = midpoint(leftShoulder, rightShoulder);
+  const hipMid = midpoint(leftHip, rightHip);
+  const kneeMid = midpoint(leftKnee, rightKnee);
+
+  // 计算躯干与大腿的夹角
+  const angle = calculateAngle(shoulderMid, hipMid, kneeMid);
+
+  // 正常站立时，躯干与大腿接近一条直线（约180度）
+  // 骨盆前倾时，这个角度会变小
+  // 返回偏离180度的角度，正值表示前倾
+  return 180 - angle;
+}
+
+/**
  * 膝内扣角度：FPPA (Frontal Plane Projection Angle) + 偏移距离
  * 技术文档 6.6 节
  * 返回归一化后的分数 (0-1)，0 表示正常，1 表示严重
@@ -373,6 +404,7 @@ export function calculateAllPostureAngles(keypoints: PoseKeypoint33[]): PostureA
     roundedShoulderAngle: calculateRoundedShoulderAngle(keypoints),
     hunchbackAngle: calculateHunchbackAngle(keypoints),
     kneeHyperextensionAngle: calculateKneeHyperextensionAngle(keypoints),
+    anteriorTiltAngle: calculateAnteriorPelvicTiltAngle(keypoints),
     // 辅助指标
     trunkLeanAngle: calculateTrunkLeanAngle(keypoints),
   };
@@ -395,6 +427,7 @@ export function calculateSideViewMetrics(keypoints: PoseKeypoint33[]): Partial<P
     roundedShoulderAngle: calculateRoundedShoulderAngle(keypoints),
     hunchbackAngle: calculateHunchbackAngle(keypoints),
     kneeHyperextensionAngle: calculateKneeHyperextensionAngle(keypoints),
+    anteriorTiltAngle: calculateAnteriorPelvicTiltAngle(keypoints),
     trunkLeanAngle: calculateTrunkLeanAngle(keypoints),
   };
 }

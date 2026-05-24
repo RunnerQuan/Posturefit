@@ -89,12 +89,13 @@ export type PoseKeypoint17 = {
 // 体态问题类型定义
 // =============================================================================
 
-// 体态问题类型（9个，不含骨盆前倾）
+// 体态问题类型（10个，含骨盆前倾）
 export type PostureIssueType =
   | 'forwardHead'           // 头前伸
   | 'roundedShoulder'       // 圆肩
   | 'shoulderImbalance'     // 高低肩
   | 'pelvicTilt'            // 骨盆侧倾
+  | 'anteriorPelvicTilt'   // 骨盆前倾
   | 'kneeValgus'           // 膝内扣
   | 'headOffset'           // 头部偏移
   | 'centerOfGravityShift' // 重心偏移
@@ -116,6 +117,7 @@ export type PostureAngleMetrics = {
   roundedShoulderAngle: number;    // 圆肩角度
   hunchbackAngle: number;          // 驼背倾向角度 (加权综合)
   kneeHyperextensionAngle: number; // 膝超伸角度
+  anteriorTiltAngle: number;       // 骨盆前倾角度
   // 辅助指标（用于综合评分）
   trunkLeanAngle?: number;         // 躯干前倾角度
 };

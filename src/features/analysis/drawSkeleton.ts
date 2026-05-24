@@ -177,6 +177,7 @@ function drawIssueLabels(
     // 正面问题
     shoulderImbalance: { anchor: 'left_shoulder', offset: { x: 80, y: -20 } },
     pelvicTilt: { anchor: 'left_hip', offset: { x: 80, y: 20 } },
+    anteriorPelvicTilt: { anchor: 'left_hip', offset: { x: -80, y: 20 } },
     kneeValgus: { anchor: 'left_knee', offset: { x: -80, y: 0 } },
     headOffset: { anchor: 'nose', offset: { x: -80, y: 30 } },
     centerOfGravityShift: { anchor: 'left_hip', offset: { x: -80, y: -20 } },

@@ -268,6 +268,36 @@ export const EXERCISES: Record<PostureIssueType, Exercise[]> = {
       contraindications: [],
     },
   ],
+  // 骨盆前倾动作库
+  anteriorPelvicTilt: [
+    {
+      id: 'apt-1',
+      issueType: 'anteriorPelvicTilt',
+      name: '臀桥训练',
+      description: '仰卧屈膝，收紧臀部将髋部向上顶起，锻炼臀肌和核心',
+      durationSeconds: 60,
+      bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=臀桥训练',
+      contraindications: [],
+    },
+    {
+      id: 'apt-2',
+      issueType: 'anteriorPelvicTilt',
+      name: '平板支撑',
+      description: '肘撑保持身体成直线，激活核心肌群稳定骨盆',
+      durationSeconds: 45,
+      bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=平板支撑',
+      contraindications: ['menstrual'],
+    },
+    {
+      id: 'apt-3',
+      issueType: 'anteriorPelvicTilt',
+      name: '猫牛式伸展',
+      description: '四肢着地，拱背和塌背交替进行，放松脊柱改善骨盆位置',
+      durationSeconds: 60,
+      bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=猫牛式伸展',
+      contraindications: [],
+    },
+  ],
 };
 
 export function filterExercisesByBodyState(
@@ -294,6 +324,7 @@ export const ISSUE_LABELS: Record<PostureIssueType, string> = {
   forwardHead: '头前伸',
   shoulderImbalance: '高低肩',
   pelvicTilt: '骨盆侧倾',
+  anteriorPelvicTilt: '骨盆前倾',
   kneeValgus: '膝内扣',
   headOffset: '头部偏移',
   centerOfGravityShift: '重心偏移',
