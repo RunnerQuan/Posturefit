@@ -22,6 +22,29 @@ export class ResilientCoachClient implements CoachClient {
     }
   }
 
+  async generatePlanMessageStream(
+    request: CoachPlanRequest,
+    onDelta: (delta: string) => void
+  ): Promise<CoachMessage> {
+    let hasStreamed = false;
+    try {
+      if (this.primary.generatePlanMessageStream) {
+        return await this.primary.generatePlanMessageStream(request, delta => {
+          hasStreamed = true;
+          onDelta(delta);
+        });
+      }
+      return await this.primary.generatePlanMessage(request);
+    } catch (error) {
+      console.warn('Coze plan stream failed, falling back to mock:', error);
+      if (hasStreamed) {
+        throw error;
+      }
+      const message = await this.fallback.generatePlanMessage(request);
+      return { ...message, source: 'mock', fallbackReason: getFallbackReason(error) };
+    }
+  }
+
   async respondToFeedback(request: CoachFeedbackRequest): Promise<CoachMessage> {
     try {
       return await this.primary.respondToFeedback(request);

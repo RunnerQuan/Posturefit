@@ -6,32 +6,33 @@ import type {
   CoachFeedbackRequest,
   CoachMessage,
   CoachPlanRequest,
-  Exercise,
-  PostureAngleMetrics,
   PostureAnalysisResult,
-  TrainingPlan,
+  PostureIssue,
+  PostureIssueType,
   UserProfile,
 } from '../../types';
 
 type CozeMode = 'plan' | 'feedback';
+type CozeIssueType =
+  | 'forwardHead'
+  | 'roundedShoulder'
+  | 'anteriorTilt'
+  | 'shoulderImbalance'
+  | 'pelvicTilt'
+  | 'kneeValgus'
+  | 'headOffset'
+  | 'centerOfGravityShift'
+  | 'hunchback'
+  | 'kneeHyperextension';
 
 type CozePromptPayload = {
-  forwardHeadAngle: number;
-  roundedShoulderAngle: number;
-  anteriorTiltAngle: number;
-  shoulderImbalance: number;
-  pelvicTilt: number;
-  kneeValgus: number;
-  headOffset: number;
-  centerOfGravityShift: number;
-  hunchback: number;
-  kneeHyperextension: number;
   score: number;
-  primaryIssue: string;
+  primaryIssue: CozeIssueType | '';
   issues: Array<{
-    type: string;
-    severity: string;
+    type: CozeIssueType;
+    severity: PostureIssue['severity'];
     angle: number;
+    category: '正面' | '侧面';
   }>;
   coachStyle: string;
   coachGender: string;
@@ -39,21 +40,16 @@ type CozePromptPayload = {
   bodyState: string;
   feedback: string;
   mode: CozeMode;
-  plan: {
-    primaryIssue: string | null;
-    exercises: Array<{
-      id: string;
-      name: string;
-      durationSeconds: number;
-      description: string;
-      bilibiliSearchUrl: string;
-    }>;
-  };
-  profile: UserProfile;
+  captureMode: string;
+  viewSelection: string;
+  profile?: UserProfile;
   previousMessages?: Array<{
     role: string;
     content: string;
   }>;
+  currentExerciseNames: string[];
+  completedExerciseNames: string[];
+  generatedExerciseNames: string[];
 };
 
 type CozeClientOptions = {
@@ -83,57 +79,86 @@ function getDefaultOptions(): CozeClientOptions {
   };
 }
 
-function mapFeedback(feedback: CheckInFeedback): string {
-  return feedback === 'completed' ? '做完了' : '太累了';
+function mapFeedback(feedback: CheckInFeedback | string, feedbackText?: string): string {
+  return feedbackText?.trim() || feedback;
 }
 
-const EMPTY_METRICS: PostureAngleMetrics = {
-  forwardHeadAngle: 0,
-  roundedShoulderAngle: 0,
-  anteriorTiltAngle: 0,
-  shoulderImbalance: 0,
-  pelvicTilt: 0,
-  kneeValgus: 0,
-  headOffset: 0,
-  centerOfGravityShift: 0,
-  hunchback: 0,
-  kneeHyperextension: 0,
-};
+const COZE_ISSUE_TYPES = new Set<CozeIssueType>([
+  'forwardHead',
+  'roundedShoulder',
+  'anteriorTilt',
+  'shoulderImbalance',
+  'pelvicTilt',
+  'kneeValgus',
+  'headOffset',
+  'centerOfGravityShift',
+  'hunchback',
+  'kneeHyperextension',
+]);
 
-function normalizePlan(plan: TrainingPlan): CozePromptPayload['plan'] {
-  return {
-    primaryIssue: plan.primaryIssue,
-    exercises: plan.exercises.map((exercise: Exercise) => ({
-      id: exercise.id,
-      name: exercise.name,
-      durationSeconds: exercise.durationSeconds,
-      description: exercise.description,
-      bilibiliSearchUrl: exercise.bilibiliSearchUrl,
-    })),
-  };
+function mapCozeIssueType(issue: PostureIssueType | null | undefined): CozeIssueType | null {
+  if (!issue) {
+    return null;
+  }
+  const mapped = issue === 'anteriorPelvicTilt' ? 'anteriorTilt' : issue;
+  return COZE_ISSUE_TYPES.has(mapped as CozeIssueType) ? (mapped as CozeIssueType) : null;
+}
+
+function getCozeIssues(analysis?: PostureAnalysisResult): CozePromptPayload['issues'] {
+  return analysis?.issues
+    .flatMap(issue => {
+      const type = mapCozeIssueType(issue.type);
+      if (!type) {
+        return [];
+      }
+      return [{
+        type,
+        severity: issue.severity,
+        angle: issue.angle,
+        category: issue.view === 'front' ? '正面' as const : '侧面' as const,
+      }];
+    }) ?? [];
+}
+
+function getCozePrimaryIssue(analysis: PostureAnalysisResult | undefined): CozeIssueType | '' {
+  const primaryIssue = mapCozeIssueType(analysis?.primaryIssue);
+  if (primaryIssue) {
+    return primaryIssue;
+  }
+  const firstIssue = getCozeIssues(analysis).find(issue => issue.severity !== 'normal');
+  return firstIssue?.type ?? '';
 }
 
 function buildPayloadBase(
   profile: UserProfile,
-  plan: TrainingPlan,
-  analysis?: PostureAnalysisResult
+  analysis: PostureAnalysisResult | undefined,
+  memory: Pick<CozePromptPayload, 'currentExerciseNames' | 'completedExerciseNames' | 'generatedExerciseNames'>
 ): Omit<CozePromptPayload, 'feedback' | 'mode'> {
-  const metrics = analysis?.metrics ?? EMPTY_METRICS;
+  const primaryIssue = getCozePrimaryIssue(analysis);
   return {
-    ...metrics,
     score: analysis?.score ?? 0,
-    primaryIssue: analysis?.primaryIssue ?? plan.primaryIssue ?? '',
-    issues: analysis?.issues.map(issue => ({
-      type: issue.type,
-      severity: issue.severity,
-      angle: issue.angle,
-    })) ?? [],
+    primaryIssue,
+    issues: getCozeIssues(analysis),
     coachStyle: profile.coachStyle,
     coachGender: profile.coachGender,
     userGoal: profile.userGoal,
     bodyState: profile.bodyState,
-    plan: normalizePlan(plan),
+    captureMode: 'fullBody',
+    viewSelection: 'dual',
     profile,
+    currentExerciseNames: memory.currentExerciseNames,
+    completedExerciseNames: memory.completedExerciseNames,
+    generatedExerciseNames: memory.generatedExerciseNames,
+  };
+}
+
+function getRequestMemory(
+  request: Pick<CoachPlanRequest | CoachFeedbackRequest, 'currentExerciseNames' | 'completedExerciseNames' | 'generatedExerciseNames'>
+): Pick<CozePromptPayload, 'currentExerciseNames' | 'completedExerciseNames' | 'generatedExerciseNames'> {
+  return {
+    currentExerciseNames: request.currentExerciseNames ?? [],
+    completedExerciseNames: request.completedExerciseNames ?? [],
+    generatedExerciseNames: request.generatedExerciseNames ?? [],
   };
 }
 
@@ -216,22 +241,33 @@ export class CozeCoachClient implements CoachClient {
 
   async generatePlanMessage(request: CoachPlanRequest): Promise<CoachMessage> {
     return this.runCoze({
-      ...buildPayloadBase(request.profile, request.plan, request.analysis),
+      ...buildPayloadBase(request.profile, request.analysis, getRequestMemory(request)),
       feedback: '',
       mode: 'plan',
-    }, request.plan.sessionId);
+    }, request.sessionId);
+  }
+
+  async generatePlanMessageStream(
+    request: CoachPlanRequest,
+    onDelta: (delta: string) => void
+  ): Promise<CoachMessage> {
+    return this.runCozeStream({
+      ...buildPayloadBase(request.profile, request.analysis, getRequestMemory(request)),
+      feedback: '',
+      mode: 'plan',
+    }, request.sessionId, onDelta);
   }
 
   async respondToFeedback(request: CoachFeedbackRequest): Promise<CoachMessage> {
     return this.runCoze({
-      ...buildPayloadBase(request.profile, request.plan, request.analysis),
-      feedback: request.feedbackText?.trim() || mapFeedback(request.feedback),
+      ...buildPayloadBase(request.profile, request.analysis, getRequestMemory(request)),
+      feedback: mapFeedback(request.feedback, request.feedbackText),
       mode: 'feedback',
       previousMessages: request.previousMessages.slice(-6).map(message => ({
         role: message.role,
         content: message.content,
       })),
-    }, request.plan.sessionId);
+    }, request.sessionId);
   }
 
   async respondToFeedbackStream(
@@ -239,14 +275,14 @@ export class CozeCoachClient implements CoachClient {
     onDelta: (delta: string) => void
   ): Promise<CoachMessage> {
     return this.runCozeStream({
-      ...buildPayloadBase(request.profile, request.plan, request.analysis),
-      feedback: request.feedbackText?.trim() || mapFeedback(request.feedback),
+      ...buildPayloadBase(request.profile, request.analysis, getRequestMemory(request)),
+      feedback: mapFeedback(request.feedback, request.feedbackText),
       mode: 'feedback',
       previousMessages: request.previousMessages.slice(-6).map(message => ({
         role: message.role,
         content: message.content,
       })),
-    }, request.plan.sessionId, onDelta);
+    }, request.sessionId, onDelta);
   }
 
   private createRequestInit(payload: CozePromptPayload, sessionId?: string): RequestInit {

@@ -1,6 +1,6 @@
 import { Heart, Smile, Zap } from 'lucide-react';
 import { COACH_PROFILES, DEFAULT_PROFILE } from '../../data/demoProfiles';
-import type { BodyState, CoachGender, CoachStyle, UserProfile } from '../../types';
+import type { BodyState, CoachStyle, UserProfile } from '../../types';
 import { useState } from 'react';
 
 type ProfileFormProps = {
@@ -26,10 +26,10 @@ const BODY_STATE_OPTIONS: Array<{ value: BodyState; label: string }> = [
 
 export function ProfileForm({ initialProfile, onSubmit, onBack, isSubmitting = false }: ProfileFormProps) {
   const [coachStyle, setCoachStyle] = useState<CoachStyle>(initialProfile?.coachStyle ?? DEFAULT_PROFILE.coachStyle);
-  const [coachGender, setCoachGender] = useState<CoachGender>(initialProfile?.coachGender ?? DEFAULT_PROFILE.coachGender);
   const [userGoal, setUserGoal] = useState(initialProfile?.userGoal ?? DEFAULT_PROFILE.userGoal);
   const [bodyState, setBodyState] = useState<BodyState>(initialProfile?.bodyState ?? DEFAULT_PROFILE.bodyState);
 
+  const coachGender = 'female' as const;
   const selectedCoach = COACH_PROFILES[`${coachStyle}_${coachGender}`];
 
   return (
@@ -40,8 +40,8 @@ export function ProfileForm({ initialProfile, onSubmit, onBack, isSubmitting = f
         onSubmit({ coachStyle, coachGender, userGoal: userGoal.trim() || DEFAULT_PROFILE.userGoal, bodyState });
       }}
     >
-      <h2 className="mb-1 text-xl font-semibold text-gray-800">选择你的专属教练</h2>
-      <p className="mb-6 text-sm text-gray-500">让 AI 运动搭子用适合你的语气陪你完成训练。</p>
+      <h2 className="mb-1 text-xl font-semibold text-gray-800">定制你的 AI 运动搭子</h2>
+      <p className="mb-6 text-sm text-gray-500">系统将由女性数字人教练陪你训练，你只需要选择她的沟通风格和你的身体状态。</p>
 
       <div className="mb-6">
         <h3 className="mb-3 text-sm font-medium text-gray-600">风格倾向</h3>
@@ -61,34 +61,6 @@ export function ProfileForm({ initialProfile, onSubmit, onBack, isSubmitting = f
                 <Icon className={`mb-3 h-5 w-5 ${active ? 'text-primary-600' : 'text-gray-400'}`} />
                 <p className="text-sm font-semibold text-gray-800">{option.label}</p>
                 <p className="mt-1 text-xs leading-5 text-gray-500">{option.desc}</p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="mb-6">
-        <h3 className="mb-3 text-sm font-medium text-gray-600">教练形象</h3>
-        <div className="grid grid-cols-2 gap-3">
-          {(['female', 'male'] as CoachGender[]).map(gender => {
-            const coach = COACH_PROFILES[`${coachStyle}_${gender}`];
-            const active = coachGender === gender;
-            return (
-              <button
-                type="button"
-                key={gender}
-                onClick={() => setCoachGender(gender)}
-                className={`flex cursor-pointer items-center gap-3 rounded-2xl border-2 p-3 transition ${
-                  active ? 'border-primary-400 bg-primary-50/70' : 'border-gray-100 bg-white hover:border-primary-200'
-                }`}
-              >
-                <span className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${coach.avatarBg} ${coach.avatarColor}`}>
-                  {coach.initials}
-                </span>
-                <span className="text-left">
-                  <span className="block text-sm font-semibold text-gray-800">{coach.name}</span>
-                  <span className="block text-xs text-gray-500">{coach.bio}</span>
-                </span>
               </button>
             );
           })}
@@ -123,7 +95,7 @@ export function ProfileForm({ initialProfile, onSubmit, onBack, isSubmitting = f
 
       <div className="mb-6 rounded-2xl bg-primary-50/70 p-4">
         <p className="text-sm font-semibold text-primary-800">{selectedCoach.name}已就位</p>
-        <p className="mt-1 text-sm text-primary-700/75">{selectedCoach.styleLabel} · {selectedCoach.bio}</p>
+        <p className="mt-1 text-sm text-primary-700/75">女性数字人教练 · {selectedCoach.styleLabel} · {selectedCoach.bio}</p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-[1fr_1.4fr]">
@@ -139,7 +111,7 @@ export function ProfileForm({ initialProfile, onSubmit, onBack, isSubmitting = f
           disabled={isSubmitting}
           className="cursor-pointer rounded-2xl bg-primary-500 px-6 py-4 text-sm font-semibold text-white transition hover:bg-primary-600 disabled:cursor-wait disabled:opacity-70"
         >
-          {isSubmitting ? '正在生成计划...' : '生成今日计划'}
+          {isSubmitting ? '正在连接教练...' : '进入 AI 陪练'}
         </button>
       </div>
     </form>

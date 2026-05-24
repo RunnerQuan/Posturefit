@@ -11,8 +11,7 @@ import { usePoseDetection, validateKeypointsForMode, KEYPOINT_LABELS_33, MODE_MI
 import { CoachChat } from './features/chat/CoachChat';
 import { HistoryRail } from './features/history/HistoryRail';
 import { ProfileForm } from './features/onboarding/ProfileForm';
-import { generateTrainingPlan } from './features/plan/generateTrainingPlan';
-import { PlanView } from './features/plan/PlanView';
+import { extractTrainingPlanFromMessage } from './features/chat/exerciseBlock';
 import { createCoachClient } from './services/coach';
 import { createSession, loadAppState, saveAppState, updateSession } from './services/storage/sessionStorage';
 import { generateId } from './lib/ids';
@@ -75,6 +74,14 @@ function getUserFeedbackMessage(feedback: CheckInFeedback, feedbackText?: string
   };
 }
 
+function uniqueNames(names: string[]): string[] {
+  return Array.from(new Set(names.map(name => name.trim()).filter(Boolean)));
+}
+
+function getExerciseNames(session: PostureSession): string[] {
+  return session.plan?.exercises.map(exercise => exercise.name) ?? session.currentExerciseNames ?? [];
+}
+
 function getCoachChannelLabel(session: PostureSession | null): string {
   const latestAssistant = [...(session?.chatMessages ?? [])].reverse().find(message => message.role === 'assistant');
   if (latestAssistant?.source === 'coze') {
@@ -94,7 +101,6 @@ const STEP_PATHS: Record<PostureSessionStep, string> = {
   capture: '/capture',
   analysis: '/analysis',
   profile: '/profile',
-  plan: '/plan',
   chat: '/chat',
 };
 
@@ -208,6 +214,9 @@ function AppShell() {
         analysis: undefined,
         combinedAnalysis: undefined,
         plan: undefined,
+        currentExerciseNames: [],
+        completedExerciseNames: [],
+        generatedExerciseNames: [],
         chatMessages: [],
       });
 
@@ -327,21 +336,62 @@ function AppShell() {
       setIsCoachWorking(true);
       setError(null);
 
+      const fixedProfile: UserProfile = { ...profile, coachGender: 'female' };
+      const assistantDraft: CoachMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: '',
+        createdAt: getCurrentISOString(),
+      };
+      const sessionWithDraft = updateSession(currentSession, {
+        profile: fixedProfile,
+        plan: undefined,
+        currentExerciseNames: [],
+        completedExerciseNames: currentSession.completedExerciseNames ?? [],
+        generatedExerciseNames: currentSession.generatedExerciseNames ?? [],
+        chatMessages: [assistantDraft],
+        step: 'chat',
+      });
+      persistSession(sessionWithDraft, fixedProfile);
+      navigateToStep('chat');
+
       try {
-        const plan = generateTrainingPlan(currentSession.id, planSource, profile.bodyState);
-        const coachMessage = await coachClient.generatePlanMessage({ analysis, profile, plan });
+        const request = {
+          analysis,
+          profile: fixedProfile,
+          sessionId: currentSession.id,
+          currentExerciseNames: [],
+          completedExerciseNames: currentSession.completedExerciseNames ?? [],
+          generatedExerciseNames: currentSession.generatedExerciseNames ?? [],
+        };
+        let streamedContent = '';
+        const updateAssistantDraft = (content: string) => {
+          persistSession(updateSession(sessionWithDraft, {
+            chatMessages: [{ ...assistantDraft, content }],
+          }));
+        };
+        const coachMessage = coachClient.generatePlanMessageStream
+          ? await coachClient.generatePlanMessageStream(request, delta => {
+            streamedContent += delta;
+            updateAssistantDraft(streamedContent);
+          })
+          : await coachClient.generatePlanMessage(request);
+        const plan = extractTrainingPlanFromMessage(coachMessage.content, currentSession.id, planSource.primaryIssue);
+        const currentExerciseNames = plan?.exercises.map(exercise => exercise.name) ?? [];
+        const generatedExerciseNames = uniqueNames([...(currentSession.generatedExerciseNames ?? []), ...currentExerciseNames]);
         if (coachMessage.fallbackReason) {
           setError(`Coze 教练连接失败，已临时回退 Mock：${coachMessage.fallbackReason}`);
         }
-        const nextSession = updateSession(currentSession, {
-          profile,
-          plan,
-          chatMessages: [coachMessage],
-          step: 'plan',
+        const nextSession = updateSession(sessionWithDraft, {
+          plan: plan ?? undefined,
+          currentExerciseNames,
+          generatedExerciseNames,
+          chatMessages: [{ ...coachMessage, id: assistantDraft.id }],
+          step: 'chat',
         });
-        persistSession(nextSession, profile);
-        navigateToStep('plan');
+        persistSession(nextSession, fixedProfile);
       } catch (err) {
+        persistSession(updateSession(sessionWithDraft, { chatMessages: [] }));
         setError(err instanceof Error ? err.message : '教练生成计划失败');
       } finally {
         setIsCoachWorking(false);
@@ -350,9 +400,86 @@ function AppShell() {
     [currentSession, navigateToStep, persistSession]
   );
 
+  const handleRequestNewPlan = useCallback(
+    async () => {
+      if (!currentSession?.profile) {
+        return;
+      }
+      const analysis = getSingleAnalysis(currentSession);
+      const planSource = getDisplayAnalysis(currentSession);
+      if (!analysis || !planSource) {
+        return;
+      }
+
+      setIsCoachWorking(true);
+      setError(null);
+      const userMessage: CoachMessage = {
+        id: generateId(),
+        role: 'user',
+        content: '换一组训练',
+        createdAt: getCurrentISOString(),
+      };
+      const assistantDraft: CoachMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: '',
+        createdAt: getCurrentISOString(),
+      };
+      const currentExerciseNames = getExerciseNames(currentSession);
+      const messagesWithDraft = [...currentSession.chatMessages, userMessage, assistantDraft];
+      const sessionWithDraft = updateSession(currentSession, {
+        chatMessages: messagesWithDraft,
+        currentExerciseNames,
+        step: 'chat',
+      });
+      persistSession(sessionWithDraft);
+
+      try {
+        const request = {
+          analysis,
+          profile: currentSession.profile,
+          sessionId: currentSession.id,
+          currentExerciseNames,
+          completedExerciseNames: currentSession.completedExerciseNames ?? [],
+          generatedExerciseNames: currentSession.generatedExerciseNames ?? [],
+        };
+        let streamedContent = '';
+        const updateAssistantDraft = (content: string) => {
+          persistSession(updateSession(sessionWithDraft, {
+            chatMessages: [...currentSession.chatMessages, userMessage, { ...assistantDraft, content }],
+          }));
+        };
+        const coachMessage = coachClient.generatePlanMessageStream
+          ? await coachClient.generatePlanMessageStream(request, delta => {
+            streamedContent += delta;
+            updateAssistantDraft(streamedContent);
+          })
+          : await coachClient.generatePlanMessage(request);
+        const plan = extractTrainingPlanFromMessage(coachMessage.content, currentSession.id, planSource.primaryIssue);
+        const nextExerciseNames = plan?.exercises.map(exercise => exercise.name) ?? currentExerciseNames;
+        const generatedExerciseNames = uniqueNames([...(currentSession.generatedExerciseNames ?? []), ...nextExerciseNames]);
+        persistSession(updateSession(sessionWithDraft, {
+          plan: plan ?? currentSession.plan,
+          currentExerciseNames: nextExerciseNames,
+          generatedExerciseNames,
+          chatMessages: [...currentSession.chatMessages, userMessage, { ...coachMessage, id: assistantDraft.id }],
+        }));
+        if (coachMessage.fallbackReason) {
+          setError(`Coze 教练连接失败，已临时回退 Mock：${coachMessage.fallbackReason}`);
+        }
+      } catch (err) {
+        persistSession(updateSession(sessionWithDraft, { chatMessages: [...currentSession.chatMessages, userMessage] }));
+        setError(err instanceof Error ? err.message : '教练生成新计划失败');
+      } finally {
+        setIsCoachWorking(false);
+      }
+    },
+    [currentSession, persistSession]
+  );
+
   const handleFeedback = useCallback(
     async (feedback: CheckInFeedback, feedbackText?: string) => {
-      if (!currentSession?.profile || !currentSession.plan) {
+      if (!currentSession?.profile) {
         return;
       }
 
@@ -366,8 +493,14 @@ function AppShell() {
         content: '',
         createdAt: getCurrentISOString(),
       };
+      const currentExerciseNames = getExerciseNames(currentSession);
+      const completedExerciseNames = feedback === 'completed' && !feedbackText?.trim()
+        ? uniqueNames([...(currentSession.completedExerciseNames ?? []), ...currentExerciseNames])
+        : currentSession.completedExerciseNames ?? [];
       const sessionWithDraft = updateSession(currentSession, {
         chatMessages: [...messagesWithUser, assistantDraft],
+        currentExerciseNames,
+        completedExerciseNames,
         step: 'chat',
       });
       persistSession(sessionWithDraft);
@@ -376,10 +509,14 @@ function AppShell() {
         const request = {
           profile: currentSession.profile,
           plan: currentSession.plan,
+          sessionId: currentSession.id,
           analysis: getSingleAnalysis(currentSession) ?? undefined,
           feedback,
           feedbackText,
           previousMessages: messagesWithUser,
+          currentExerciseNames,
+          completedExerciseNames,
+          generatedExerciseNames: currentSession.generatedExerciseNames ?? [],
         };
         let streamedContent = '';
         const updateAssistantDraft = (content: string) => {
@@ -395,6 +532,7 @@ function AppShell() {
           : await coachClient.respondToFeedback(request);
         persistSession(updateSession(sessionWithDraft, {
           chatMessages: [...messagesWithUser, { ...coachMessage, id: assistantDraft.id }],
+          completedExerciseNames,
         }));
         if (coachMessage.fallbackReason) {
           setError(`Coze 教练连接失败，已临时回退 Mock：${coachMessage.fallbackReason}`);
@@ -456,7 +594,13 @@ function AppShell() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <main
+        className={`mx-auto gap-6 px-4 py-8 ${
+          currentStep === 'chat'
+            ? 'grid max-w-7xl lg:grid-cols-1'
+            : 'grid max-w-6xl lg:grid-cols-[minmax(0,1fr)_300px]'
+        }`}
+      >
         <section className="min-w-0">
           {error && (
             <div className="mb-5 rounded-2xl border border-red-100 bg-white p-4 text-sm leading-6 text-red-600 shadow-card">
@@ -562,27 +706,19 @@ function AppShell() {
             />
           )}
 
-          {currentStep === 'plan' && currentSession?.plan && (
-            <PlanView
-              plan={currentSession.plan}
-              coachMessage={currentSession.chatMessages.find(message => message.role === 'assistant')}
-              onStartTraining={() => moveToStep('chat')}
-              onBack={() => moveToStep('profile')}
-            />
-          )}
-
-          {currentStep === 'chat' && currentSession?.plan && (
+          {currentStep === 'chat' && currentSession && (
             <CoachChat
               messages={currentSession.chatMessages}
               plan={currentSession.plan}
               isResponding={isCoachWorking}
               onFeedback={handleFeedback}
+              onRequestNewPlan={handleRequestNewPlan}
               onRestart={handleRetry}
             />
           )}
         </section>
 
-        <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+        <div className={`space-y-6 lg:sticky lg:top-6 lg:self-start ${currentStep === 'chat' ? 'hidden' : ''}`}>
           <section className="rounded-2xl bg-white p-5 shadow-card">
             <div className="mb-4 flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-primary-500" />
@@ -615,8 +751,8 @@ function App() {
         <Route path="/capture" element={<AppShell />} />
         <Route path="/analysis" element={<AppShell />} />
         <Route path="/profile" element={<AppShell />} />
-        <Route path="/plan" element={<AppShell />} />
         <Route path="/chat" element={<AppShell />} />
+        <Route path="/plan" element={<Navigate to="/chat" replace />} />
         <Route path="*" element={<Navigate to="/capture" replace />} />
       </Routes>
     </BrowserRouter>

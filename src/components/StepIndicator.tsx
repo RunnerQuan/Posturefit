@@ -4,11 +4,10 @@ const STEPS: { key: PostureSessionStep; label: string }[] = [
   { key: 'capture', label: '拍照' },
   { key: 'analysis', label: '分析' },
   { key: 'profile', label: '教练' },
-  { key: 'plan', label: '计划' },
-  { key: 'chat', label: '打卡' },
+  { key: 'chat', label: '陪练' },
 ];
 
-const STEP_ORDER: PostureSessionStep[] = ['capture', 'analysis', 'profile', 'plan', 'chat'];
+const STEP_ORDER: PostureSessionStep[] = ['capture', 'analysis', 'profile', 'chat'];
 
 interface StepIndicatorProps {
   currentStep: PostureSessionStep;

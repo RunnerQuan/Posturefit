@@ -18,7 +18,24 @@ const analysis: PostureAnalysisResult = {
     hunchbackAngle: 0,
     kneeHyperextensionAngle: 0,
   },
-  issues: [],
+  issues: [
+    {
+      type: 'anteriorPelvicTilt',
+      severity: 'moderate',
+      angle: 25,
+      threshold: 15,
+      label: '骨盆前倾中度异常',
+      view: 'side',
+    },
+    {
+      type: 'roundedShoulder',
+      severity: 'mild',
+      angle: 22,
+      threshold: 20,
+      label: '圆肩轻度异常',
+      view: 'side',
+    },
+  ],
   primaryIssue: 'anteriorPelvicTilt',
   score: 80,
   analyzedAt: '2026-05-24T00:00:00.000Z',
@@ -36,12 +53,36 @@ const plan: TrainingPlan = {
   id: 'plan-1',
   sessionId: 'session-1',
   primaryIssue: 'anteriorPelvicTilt',
-  exercises: [],
+  exercises: [
+    {
+      id: 'ap-1',
+      issueType: 'anteriorPelvicTilt',
+      name: '骨盆后倾训练',
+      description: '旧规约动作',
+      durationSeconds: 60,
+      bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=骨盆后倾训练',
+    },
+    {
+      id: 'rs-3',
+      issueType: 'roundedShoulder',
+      name: '肩胛骨后缩',
+      description: '坐直或站直，将双肩向后夹紧肩胛骨',
+      durationSeconds: 60,
+      bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=肩胛骨后缩',
+    },
+  ],
   createdAt: '2026-05-24T00:00:00.000Z',
   intensity: 'medium',
 };
 
-const request: CoachPlanRequest = { analysis, profile, plan };
+const request: CoachPlanRequest = {
+  analysis,
+  profile,
+  sessionId: 'session-1',
+  currentExerciseNames: [],
+  completedExerciseNames: [],
+  generatedExerciseNames: [],
+};
 
 describe('CozeCoachClient', () => {
   it('parses streamed answer chunks', () => {
@@ -73,10 +114,16 @@ describe('CozeCoachClient', () => {
 
     expect(message.content).toBe('计划已生成');
     expect(prompt.mode).toBe('plan');
-    expect(prompt.anteriorTiltAngle).toBe(25);
-    expect(prompt.shoulderImbalance).toBe(0);
-    expect(prompt.primaryIssue).toBe('anteriorPelvicTilt');
-    expect(prompt.plan.primaryIssue).toBe('anteriorPelvicTilt');
+    expect(prompt.anteriorTiltAngle).toBeUndefined();
+    expect(prompt.shoulderImbalance).toBeUndefined();
+    expect(prompt.primaryIssue).toBe('anteriorTilt');
+    expect(prompt.issues).toEqual([
+      { type: 'anteriorTilt', severity: 'moderate', angle: 25, category: '侧面' },
+      { type: 'roundedShoulder', severity: 'mild', angle: 22, category: '侧面' },
+    ]);
+    expect(prompt.currentExerciseNames).toEqual([]);
+    expect(prompt.completedExerciseNames).toEqual([]);
+    expect(prompt.generatedExerciseNames).toEqual([]);
     expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({
       Authorization: 'Bearer test-token',
     });
@@ -95,6 +142,7 @@ describe('CozeCoachClient', () => {
     const feedbackRequest: CoachFeedbackRequest = {
       analysis,
       profile,
+      sessionId: 'session-1',
       plan,
       feedback: 'tooTired',
       feedbackText: '太累了，腰酸',
@@ -111,7 +159,7 @@ describe('CozeCoachClient', () => {
     expect(message.content).toBe('今天先减量');
     expect(prompt.mode).toBe('feedback');
     expect(prompt.feedback).toBe('太累了，腰酸');
-    expect(prompt.forwardHeadAngle).toBe(6);
+    expect(prompt.forwardHeadAngle).toBeUndefined();
     expect(prompt.previousMessages).toHaveLength(2);
     expect(body.session_id).toBe('session-1');
   });
@@ -142,6 +190,7 @@ describe('CozeCoachClient', () => {
       {
         analysis,
         profile,
+        sessionId: 'session-1',
         plan,
         feedback: 'tooTired',
         feedbackText: '太累了',
@@ -165,6 +214,7 @@ describe('CozeCoachClient', () => {
     const message = await client.respondToFeedbackStream!(
       {
         profile,
+        sessionId: 'session-1',
         plan,
         feedback: 'completed',
         previousMessages: [],

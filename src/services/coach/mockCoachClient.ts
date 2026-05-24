@@ -13,22 +13,53 @@ export class MockCoachClient implements CoachClient {
 
     const intro = MOCK_RESPONSES.planIntro(profile, issueLabel);
 
+    const exercises = [
+      {
+        id: 'mock-1',
+        issueType: primaryIssue ?? 'roundedShoulder',
+        name: '肩胛骨后缩',
+        description: '坐直或站直，将双肩向后夹紧肩胛骨，保持呼吸平稳。',
+        durationSeconds: 60,
+        bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=%E8%82%A9%E8%83%9B%E9%AA%A8%E5%90%8E%E7%BC%A9',
+      },
+      {
+        id: 'mock-2',
+        issueType: primaryIssue ?? 'roundedShoulder',
+        name: '胸椎伸展',
+        description: '双手扶住后脑，轻轻打开胸腔，避免腰部代偿。',
+        durationSeconds: 60,
+        bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=%E8%83%B8%E6%A4%8E%E4%BC%B8%E5%B1%95',
+      },
+      {
+        id: 'mock-3',
+        issueType: primaryIssue ?? 'roundedShoulder',
+        name: '墙壁天使',
+        description: '背靠墙站立，手臂贴墙缓慢上举下放，感受肩胛稳定。',
+        durationSeconds: 45,
+        bilibiliSearchUrl: 'https://search.bilibili.com/all?keyword=%E5%A2%99%E5%A3%81%E5%A4%A9%E4%BD%BF',
+      },
+    ];
+
     const planText = `
 根据您的体态分析，您存在${issueLabel}问题。以下是今日训练计划：
 
-1. **${request.plan.exercises[0]?.name || '动作1'}**（${request.plan.exercises[0]?.durationSeconds || 60}秒）
-   描述：${request.plan.exercises[0]?.description || '训练动作'}
-   视频参考：[B站搜索](${request.plan.exercises[0]?.bilibiliSearchUrl || 'https://search.bilibili.com'})
+1. **${exercises[0].name}**（${exercises[0].durationSeconds}秒）
+   描述：${exercises[0].description}
+   视频参考：[B站搜索](${exercises[0].bilibiliSearchUrl})
 
-2. **${request.plan.exercises[1]?.name || '动作2'}**（${request.plan.exercises[1]?.durationSeconds || 45}秒）
-   描述：${request.plan.exercises[1]?.description || '训练动作'}
-   视频参考：[B站搜索](${request.plan.exercises[1]?.bilibiliSearchUrl || 'https://search.bilibili.com'})
+2. **${exercises[1].name}**（${exercises[1].durationSeconds}秒）
+   描述：${exercises[1].description}
+   视频参考：[B站搜索](${exercises[1].bilibiliSearchUrl})
 
-3. **${request.plan.exercises[2]?.name || '动作3'}**（${request.plan.exercises[2]?.durationSeconds || 60}秒）
-   描述：${request.plan.exercises[2]?.description || '训练动作'}
-   视频参考：[B站搜索](${request.plan.exercises[2]?.bilibiliSearchUrl || 'https://search.bilibili.com'})
+3. **${exercises[2].name}**（${exercises[2].durationSeconds}秒）
+   描述：${exercises[2].description}
+   视频参考：[B站搜索](${exercises[2].bilibiliSearchUrl})
 
-请按照计划完成训练，完成后请回复"做完了"，如果感到疲劳请回复"太累了"。
+请按照计划完成训练，完成后点击“做完了”，如果感到疲劳点击“太累了”。
+
+<!-- posturefit:exercises
+${JSON.stringify({ exercises })}
+-->
 `.trim();
 
     return {
