@@ -5,6 +5,58 @@ type MarkdownMessageProps = {
   className?: string;
 };
 
+// AI 教练回复中常包含的评分段落特征，常见格式如：
+// - 📊 体态评分：85分（良好 ✅）
+// - 正面问题得分：60分
+// - 侧面问题得分：25分
+const SCORE_PATTERNS: RegExp[] = [
+  /^[\s]*[📊🔢📈✅❌]+[\s]*(体态评分|评分|总分|得分|综合评分)[：:]\s*\d+[\s]*[分分]?/,
+  /^[\s]*[📊🔢📈✅❌]+[\s]*(正面|背面|侧面|整体)[\s]*(问题)?[\s]*(得分|评分|分)[：:]/,
+  /^[\s]*[📊🔢📈✅❌]+[\s]*(问题|评分|综合|总分)[：:]/,
+  /^[\s]*(体态评分|评分|总分|综合评分|整体评分)[：:]\s*\d+/,
+  /^[\s]*(正面|背面|侧面|整体)[\s]*(问题)?[\s]*(得分|评分|分)[：:]\s*\d+/,
+  /^[\s]*[✅❌][\s]*(良好|一般|严重|轻微|正常)/,
+];
+
+function containsScoreSection(line: string): boolean {
+  return SCORE_PATTERNS.some(p => p.test(line.trim()));
+}
+
+function removeScoreSection(content: string): string {
+  const lines = content.split(/\r?\n/);
+  const result: string[] = [];
+  let skipMode = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed === '' || trimmed === '---') {
+      skipMode = false;
+      result.push(line);
+      continue;
+    }
+
+    if (containsScoreSection(line)) {
+      skipMode = true;
+      // 跳过这一行及之后连续的评分相关行
+      while (i < lines.length && containsScoreSection(lines[i])) {
+        i++;
+      }
+      i--; // 退回一个，因为 for 循环会再++
+      continue;
+    }
+
+    if (skipMode) {
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  return result.join('\n').trim();
+}
+
 function renderInline(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   const tokenRe = /(\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\))/g;
@@ -40,7 +92,11 @@ function renderInline(text: string): ReactNode[] {
 }
 
 export function MarkdownMessage({ content, className = '' }: MarkdownMessageProps) {
-  const lines = content.split(/\r?\n/);
+  const cleanedContent = removeScoreSection(content);
+  if (!cleanedContent) {
+    return <div className={className} />;
+  }
+  const lines = cleanedContent.split(/\r?\n/);
   const elements: ReactNode[] = [];
   let listItems: string[] = [];
 
