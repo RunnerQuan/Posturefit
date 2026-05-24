@@ -89,7 +89,7 @@ describe('App frontend B flow', () => {
     });
   });
 
-  it('runs upload, analysis, profile, plan, and check-in feedback', async () => {
+  it('runs upload, analysis, profile, chat plan, and check-in feedback', async () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
@@ -98,18 +98,15 @@ describe('App frontend B flow', () => {
     expect(screen.getByTestId('skeleton-overlay')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /继续选择教练/ }));
-    expect(await screen.findByText('选择你的专属教练')).toBeInTheDocument();
+    expect(await screen.findByText('定制你的 AI 运动搭子')).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('例如：改善圆肩、缓解久坐酸痛'), {
       target: { value: '改善圆肩' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '生成今日计划' }));
+    fireEvent.click(screen.getByRole('button', { name: '进入 AI 陪练' }));
 
-    expect(await screen.findByText('今日训练计划')).toBeInTheDocument();
-    expect(screen.getAllByText('B站跟练参考')).toHaveLength(3);
-
-    fireEvent.click(screen.getByRole('button', { name: '去打卡' }));
     expect(await screen.findByText(/今天完成 3 个动作了吗/)).toBeInTheDocument();
+    expect(screen.getAllByText('肩胛骨后缩').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: '做完了' }));
     await waitFor(() => expect(screen.getAllByText('做完了').length).toBeGreaterThan(1));

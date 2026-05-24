@@ -206,20 +206,31 @@ export type CoachMessage = {
 export type CoachPlanRequest = {
   analysis: PostureAnalysisResult;
   profile: UserProfile;
-  plan: TrainingPlan;
+  sessionId: string;
+  currentExerciseNames?: string[];
+  completedExerciseNames?: string[];
+  generatedExerciseNames?: string[];
 };
 
 export type CoachFeedbackRequest = {
   profile: UserProfile;
-  plan: TrainingPlan;
+  sessionId: string;
+  plan?: TrainingPlan;
   analysis?: PostureAnalysisResult;
-  feedback: CheckInFeedback;
+  feedback: CheckInFeedback | string;
   feedbackText?: string;
   previousMessages: CoachMessage[];
+  currentExerciseNames?: string[];
+  completedExerciseNames?: string[];
+  generatedExerciseNames?: string[];
 };
 
 export interface CoachClient {
   generatePlanMessage(request: CoachPlanRequest): Promise<CoachMessage>;
+  generatePlanMessageStream?(
+    request: CoachPlanRequest,
+    onDelta: (delta: string) => void
+  ): Promise<CoachMessage>;
   respondToFeedback(request: CoachFeedbackRequest): Promise<CoachMessage>;
   respondToFeedbackStream?(
     request: CoachFeedbackRequest,
@@ -228,7 +239,7 @@ export interface CoachClient {
 }
 
 // Session types
-export type PostureSessionStep = 'capture' | 'analysis' | 'profile' | 'plan' | 'chat';
+export type PostureSessionStep = 'capture' | 'analysis' | 'profile' | 'chat';
 
 export type PostureSession = {
   id: string;
@@ -245,6 +256,9 @@ export type PostureSession = {
   analysis?: PostureAnalysisResult;
   profile?: UserProfile;
   plan?: TrainingPlan;
+  currentExerciseNames?: string[];
+  completedExerciseNames?: string[];
+  generatedExerciseNames?: string[];
   chatMessages: CoachMessage[];
 };
 
