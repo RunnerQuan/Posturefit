@@ -79,6 +79,8 @@ const request: CoachPlanRequest = {
   analysis,
   profile,
   sessionId: 'session-1',
+  captureMode: 'halfBody',
+  viewSelection: 'side',
   currentExerciseNames: [],
   completedExerciseNames: [],
   generatedExerciseNames: [],
@@ -103,8 +105,8 @@ describe('CozeCoachClient', () => {
     );
     const client = new CozeCoachClient({
       endpoint: 'https://example.test/stream_run',
-      projectId: '7643064613231263754',
-      token: 'test-token',
+      projectId: '7643312041570172962',
+      token: 'header.payload.signature',
       fetcher,
     });
 
@@ -117,6 +119,9 @@ describe('CozeCoachClient', () => {
     expect(prompt.anteriorTiltAngle).toBeUndefined();
     expect(prompt.shoulderImbalance).toBeUndefined();
     expect(prompt.primaryIssue).toBe('anteriorTilt');
+    expect(prompt.score).toBe(80);
+    expect(prompt.captureMode).toBe('halfBody');
+    expect(prompt.viewSelection).toBe('side');
     expect(prompt.issues).toEqual([
       { type: 'anteriorTilt', severity: 'moderate', angle: 25, category: '侧面' },
       { type: 'roundedShoulder', severity: 'mild', angle: 22, category: '侧面' },
@@ -125,7 +130,7 @@ describe('CozeCoachClient', () => {
     expect(prompt.completedExerciseNames).toEqual([]);
     expect(prompt.generatedExerciseNames).toEqual([]);
     expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({
-      Authorization: 'Bearer test-token',
+      Authorization: 'Bearer header.payload.signature',
     });
   });
 
@@ -135,8 +140,8 @@ describe('CozeCoachClient', () => {
     );
     const client = new CozeCoachClient({
       endpoint: 'https://example.test/stream_run',
-      projectId: '7643064613231263754',
-      token: 'test-token',
+      projectId: '7643312041570172962',
+      token: 'header.payload.signature',
       fetcher,
     });
     const feedbackRequest: CoachFeedbackRequest = {
@@ -146,6 +151,11 @@ describe('CozeCoachClient', () => {
       plan,
       feedback: 'tooTired',
       feedbackText: '太累了，腰酸',
+      captureMode: 'fullBody',
+      viewSelection: 'dual',
+      currentExerciseNames: ['肩胛骨后缩', '胸椎伸展'],
+      completedExerciseNames: ['墙壁天使'],
+      generatedExerciseNames: ['肩胛骨后缩', '胸椎伸展', '墙壁天使'],
       previousMessages: [
         { id: 'm-1', role: 'assistant', content: '开始训练', createdAt: '2026-05-24T00:00:00.000Z' },
         { id: 'm-2', role: 'user', content: '太累了，腰酸', createdAt: '2026-05-24T00:01:00.000Z' },
@@ -160,6 +170,9 @@ describe('CozeCoachClient', () => {
     expect(prompt.mode).toBe('feedback');
     expect(prompt.feedback).toBe('太累了，腰酸');
     expect(prompt.forwardHeadAngle).toBeUndefined();
+    expect(prompt.currentExerciseNames).toEqual(['肩胛骨后缩', '胸椎伸展']);
+    expect(prompt.completedExerciseNames).toEqual(['墙壁天使']);
+    expect(prompt.generatedExerciseNames).toEqual(['肩胛骨后缩', '胸椎伸展', '墙壁天使']);
     expect(prompt.previousMessages).toHaveLength(2);
     expect(body.session_id).toBe('session-1');
   });
@@ -180,8 +193,8 @@ describe('CozeCoachClient', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(stream, { status: 200 }));
     const client = new CozeCoachClient({
       endpoint: 'https://example.test/stream_run',
-      projectId: '7643064613231263754',
-      token: 'test-token',
+      projectId: '7643312041570172962',
+      token: 'header.payload.signature',
       fetcher,
     });
     const deltas: string[] = [];

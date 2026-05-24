@@ -60,6 +60,9 @@ type CozeClientOptions = {
   fetcher?: typeof fetch;
 };
 
+const DEFAULT_COZE_ENDPOINT = 'https://8f9jzqp2mk.coze.site/stream_run';
+const DEFAULT_COZE_PROJECT_ID = '7643312041570172962';
+
 function getRequiredEnv(name: string): string {
   const value = import.meta.env[name];
   if (!value) {
@@ -69,18 +72,24 @@ function getRequiredEnv(name: string): string {
 }
 
 function getDefaultOptions(): CozeClientOptions {
-  const endpoint = getRequiredEnv('VITE_COZE_ENDPOINT');
+  const endpoint = String(import.meta.env.VITE_COZE_ENDPOINT || DEFAULT_COZE_ENDPOINT);
   return {
     endpoint: import.meta.env.DEV && import.meta.env.MODE !== 'test' && endpoint.includes('coze.site')
       ? '/api/coze/stream_run'
       : endpoint,
-    projectId: getRequiredEnv('VITE_COZE_PROJECT_ID'),
+    projectId: String(import.meta.env.VITE_COZE_PROJECT_ID || DEFAULT_COZE_PROJECT_ID),
     token: getRequiredEnv('VITE_COZE_TOKEN'),
   };
 }
 
 function mapFeedback(feedback: CheckInFeedback | string, feedbackText?: string): string {
   return feedbackText?.trim() || feedback;
+}
+
+function assertValidTokenFormat(token: string): void {
+  if (token.split('.').length !== 3) {
+    throw new Error('Coze token 格式异常：请确认 VITE_COZE_TOKEN 只包含一个完整 token，不要拼接多个 token');
+  }
 }
 
 const COZE_ISSUE_TYPES = new Set<CozeIssueType>([
@@ -132,7 +141,9 @@ function getCozePrimaryIssue(analysis: PostureAnalysisResult | undefined): CozeI
 function buildPayloadBase(
   profile: UserProfile,
   analysis: PostureAnalysisResult | undefined,
-  memory: Pick<CozePromptPayload, 'currentExerciseNames' | 'completedExerciseNames' | 'generatedExerciseNames'>
+  memory: Pick<CozePromptPayload, 'currentExerciseNames' | 'completedExerciseNames' | 'generatedExerciseNames'>,
+  captureMode = 'fullBody',
+  viewSelection = 'dual'
 ): Omit<CozePromptPayload, 'feedback' | 'mode'> {
   const primaryIssue = getCozePrimaryIssue(analysis);
   return {
@@ -143,8 +154,8 @@ function buildPayloadBase(
     coachGender: profile.coachGender,
     userGoal: profile.userGoal,
     bodyState: profile.bodyState,
-    captureMode: 'fullBody',
-    viewSelection: 'dual',
+    captureMode,
+    viewSelection,
     profile,
     currentExerciseNames: memory.currentExerciseNames,
     completedExerciseNames: memory.completedExerciseNames,
@@ -241,7 +252,13 @@ export class CozeCoachClient implements CoachClient {
 
   async generatePlanMessage(request: CoachPlanRequest): Promise<CoachMessage> {
     return this.runCoze({
-      ...buildPayloadBase(request.profile, request.analysis, getRequestMemory(request)),
+      ...buildPayloadBase(
+        request.profile,
+        request.analysis,
+        getRequestMemory(request),
+        request.captureMode,
+        request.viewSelection
+      ),
       feedback: '',
       mode: 'plan',
     }, request.sessionId);
@@ -252,7 +269,13 @@ export class CozeCoachClient implements CoachClient {
     onDelta: (delta: string) => void
   ): Promise<CoachMessage> {
     return this.runCozeStream({
-      ...buildPayloadBase(request.profile, request.analysis, getRequestMemory(request)),
+      ...buildPayloadBase(
+        request.profile,
+        request.analysis,
+        getRequestMemory(request),
+        request.captureMode,
+        request.viewSelection
+      ),
       feedback: '',
       mode: 'plan',
     }, request.sessionId, onDelta);
@@ -260,7 +283,13 @@ export class CozeCoachClient implements CoachClient {
 
   async respondToFeedback(request: CoachFeedbackRequest): Promise<CoachMessage> {
     return this.runCoze({
-      ...buildPayloadBase(request.profile, request.analysis, getRequestMemory(request)),
+      ...buildPayloadBase(
+        request.profile,
+        request.analysis,
+        getRequestMemory(request),
+        request.captureMode,
+        request.viewSelection
+      ),
       feedback: mapFeedback(request.feedback, request.feedbackText),
       mode: 'feedback',
       previousMessages: request.previousMessages.slice(-6).map(message => ({
@@ -275,7 +304,13 @@ export class CozeCoachClient implements CoachClient {
     onDelta: (delta: string) => void
   ): Promise<CoachMessage> {
     return this.runCozeStream({
-      ...buildPayloadBase(request.profile, request.analysis, getRequestMemory(request)),
+      ...buildPayloadBase(
+        request.profile,
+        request.analysis,
+        getRequestMemory(request),
+        request.captureMode,
+        request.viewSelection
+      ),
       feedback: mapFeedback(request.feedback, request.feedbackText),
       mode: 'feedback',
       previousMessages: request.previousMessages.slice(-6).map(message => ({
@@ -286,6 +321,8 @@ export class CozeCoachClient implements CoachClient {
   }
 
   private createRequestInit(payload: CozePromptPayload, sessionId?: string): RequestInit {
+    assertValidTokenFormat(this.token);
+
     return {
       method: 'POST',
       headers: {
