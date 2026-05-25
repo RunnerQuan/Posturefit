@@ -178,6 +178,32 @@ describe('CozeCoachClient', () => {
     expect(body.session_id).toBe('session-1');
   });
 
+  it('posts proxy payload without frontend token when using same-origin api route', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('event: message\ndata: {"type":"message_start","content":{"answer":null,"error":null},"finish":true}\ndata: {"type":"answer","content":{"answer":"代理正常","error":null},"finish":false}\ndata: {"type":"answer","content":{"answer":"","error":null},"finish":true}\ndata: {"type":"message_end","content":{"answer":null,"error":null},"finish":true}\n\n', { status: 200 })
+    );
+    const client = new CozeCoachClient({
+      endpoint: '/api/coze/stream_run',
+      fetcher,
+    });
+
+    const message = await client.generatePlanMessage(request);
+    const init = fetcher.mock.calls[0][1];
+    const body = JSON.parse(String(init?.body));
+
+    expect(message.content).toBe('代理正常');
+    expect(init?.headers).toEqual({
+      'Content-Type': 'application/json',
+    });
+    expect(body).toMatchObject({
+      payload: {
+        mode: 'plan',
+        primaryIssue: 'anteriorTilt',
+      },
+      sessionId: 'session-1',
+    });
+  });
+
   it('streams check-in feedback chunks', async () => {
     const stream = new ReadableStream({
       start(controller) {
