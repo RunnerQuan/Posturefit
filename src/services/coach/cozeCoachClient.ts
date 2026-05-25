@@ -56,14 +56,14 @@ type CozePromptPayload = {
 
 type CozeClientOptions = {
   endpoint: string;
-  projectId: string;
-  token: string;
+  projectId?: string;
+  token?: string;
   sessionId?: string;
   fetcher?: typeof fetch;
 };
 
-const DEFAULT_COZE_ENDPOINT = 'https://8f9jzqp2mk.coze.site/stream_run';
 const DEFAULT_COZE_PROJECT_ID = '7643312041570172962';
+const DEFAULT_COZE_PROXY_ENDPOINT = '/api/coze/stream_run';
 
 function getRequiredEnv(name: string): string {
   const value = import.meta.env[name];
@@ -74,13 +74,15 @@ function getRequiredEnv(name: string): string {
 }
 
 function getDefaultOptions(): CozeClientOptions {
-  const endpoint = String(import.meta.env.VITE_COZE_ENDPOINT || DEFAULT_COZE_ENDPOINT);
+  const endpoint = String(import.meta.env.VITE_COZE_PROXY_ENDPOINT || DEFAULT_COZE_PROXY_ENDPOINT);
   return {
-    endpoint: import.meta.env.DEV && import.meta.env.MODE !== 'test' && endpoint.includes('coze.site')
-      ? '/api/coze/stream_run'
-      : endpoint,
-    projectId: String(import.meta.env.VITE_COZE_PROJECT_ID || DEFAULT_COZE_PROJECT_ID),
-    token: getRequiredEnv('VITE_COZE_TOKEN'),
+    endpoint,
+    projectId: import.meta.env.DEV && import.meta.env.MODE !== 'test'
+      ? String(import.meta.env.VITE_COZE_PROJECT_ID || DEFAULT_COZE_PROJECT_ID)
+      : undefined,
+    token: import.meta.env.DEV && import.meta.env.MODE !== 'test'
+      ? getRequiredEnv('VITE_COZE_TOKEN')
+      : undefined,
   };
 }
 
@@ -239,8 +241,8 @@ export function parseCozeDataLine(line: string): string {
 
 export class CozeCoachClient implements CoachClient {
   private readonly endpoint: string;
-  private readonly projectId: string;
-  private readonly token: string;
+  private readonly projectId?: string;
+  private readonly token?: string;
   private readonly sessionId?: string;
   private readonly fetcher: typeof fetch;
 
@@ -324,6 +326,21 @@ export class CozeCoachClient implements CoachClient {
   }
 
   private createRequestInit(payload: CozePromptPayload, sessionId?: string): RequestInit {
+    const resolvedSessionId = sessionId ?? this.sessionId ?? generateId();
+
+    if (!this.token || !this.projectId) {
+      return {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          payload,
+          sessionId: resolvedSessionId,
+        }),
+      };
+    }
+
     assertValidTokenFormat(this.token);
 
     return {
@@ -346,7 +363,7 @@ export class CozeCoachClient implements CoachClient {
           },
         },
         type: 'query',
-        session_id: sessionId ?? this.sessionId ?? generateId(),
+        session_id: resolvedSessionId,
         project_id: Number(this.projectId),
       }),
     };
