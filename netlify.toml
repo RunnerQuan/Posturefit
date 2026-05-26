@@ -1,0 +1,17 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+# 将 /api/coze/* 请求代理到 Netlify Function
+[[redirects]]
+  from = "/api/coze/*"
+  to = "/.netlify/functions/coze-stream-run"
+  status = 200
+  force = true
+
+# SPA fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
