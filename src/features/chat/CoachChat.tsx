@@ -30,26 +30,36 @@ function ExerciseCards({ exercises }: { exercises: Exercise[] }) {
   return (
     <div className="mt-5 grid gap-3 rounded-3xl bg-primary-50/50 p-3 md:grid-cols-3">
       {exercises.map((exercise, index) => (
-        <article key={`${exercise.id}-${index}`} className="rounded-2xl border border-white bg-white/85 p-4 shadow-sm">
-          <p className="text-xs font-semibold text-primary-600">动作 {index + 1}</p>
-          <h3 className="mt-1 text-base font-semibold leading-6 text-gray-900">{exercise.name}</h3>
-          <p className="mt-2 line-clamp-3 text-xs leading-5 text-gray-600">{exercise.description}</p>
-          <div className="mt-4 flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700">
-              <Timer className="h-3.5 w-3.5" />
-              {formatDuration(exercise.durationSeconds)}
-            </span>
-            <a
-              href={exercise.bilibiliSearchUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:text-primary-700"
-            >
-              视频
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+        <a
+          key={`${exercise.id}-${index}`}
+          href={exercise.bilibiliSearchUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="group relative overflow-hidden rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg focus-visible:-translate-y-1 focus-visible:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300"
+        >
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(244,114,182,0.16),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.12),transparent_38%)] opacity-80 transition duration-300 group-hover:scale-105" />
+          <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-primary-200 to-transparent" />
+          <div className="relative">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-primary-600">动作 {index + 1}</p>
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 transition group-hover:bg-primary-100">
+                <Timer className="h-3.5 w-3.5" />
+                {formatDuration(exercise.durationSeconds)}
+              </span>
+            </div>
+            <h3 className="mt-2 text-base font-semibold leading-6 text-gray-900 transition group-hover:text-primary-700">
+              {exercise.name}
+            </h3>
+            <p className="mt-2 line-clamp-3 text-xs leading-5 text-gray-600">{exercise.description}</p>
+            <div className="mt-4 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+              <span className="text-primary-700/80">点击卡片查看视频</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 transition group-hover:bg-primary-50 group-hover:text-primary-700">
+                视频
+                <ExternalLink className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </span>
+            </div>
           </div>
-        </article>
+        </a>
       ))}
     </div>
   );

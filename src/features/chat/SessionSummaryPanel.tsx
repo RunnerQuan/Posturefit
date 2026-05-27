@@ -1,6 +1,5 @@
 import { Activity, Dumbbell, RotateCcw, UserRound } from 'lucide-react';
-import { ISSUE_LABELS } from '../../data/exercises';
-import { getSessionDisplayAnalysis, getSessionDisplayPhotos } from '../../lib/sessionAnalysis';
+import { getSessionDisplayAnalysis, getSessionDisplayIssueLabel, getSessionDisplayPhotos } from '../../lib/sessionAnalysis';
 import type { BodyState, CoachStyle, PostureSession } from '../../types';
 
 type SessionSummaryPanelProps = {
@@ -21,11 +20,6 @@ const COACH_STYLE_LABELS: Record<CoachStyle, string> = {
   strict: '严厉型',
   humorous: '幽默型',
 };
-
-function getIssueLabel(session: PostureSession): string {
-  const issue = getSessionDisplayAnalysis(session)?.primaryIssue ?? null;
-  return issue ? ISSUE_LABELS[issue] : '待分析';
-}
 
 function getScore(session: PostureSession): number | undefined {
   return getSessionDisplayAnalysis(session)?.score;
@@ -63,7 +57,7 @@ export function SessionSummaryPanel({ session, onRestart }: SessionSummaryPanelP
 
       <div className="flex-1 space-y-3 overflow-y-auto p-3 custom-scrollbar">
         <section className="rounded-2xl bg-gradient-to-br from-blush-50/80 to-mist-50/70 p-2.5">
-          <div className="grid grid-cols-2 gap-2">
+          <div className={`grid gap-2 ${photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {photos.slice(0, 2).map(photo => (
               <div key={photo.id} className="overflow-hidden rounded-xl bg-white shadow-sm">
                 <img src={photo.imageUrl} alt="" className="aspect-[4/5] w-full object-cover" />
@@ -96,7 +90,9 @@ export function SessionSummaryPanel({ session, onRestart }: SessionSummaryPanelP
                 <Activity className="h-3.5 w-3.5" />
                 分析评分
               </p>
-              <h3 className="mt-1 truncate text-xl font-semibold text-gray-900">{getIssueLabel(session)}</h3>
+              <h3 className="mt-1 truncate text-xl font-semibold text-gray-900">
+                {getSessionDisplayIssueLabel(session, { pendingLabel: '待分析' })}
+              </h3>
               <p className="mt-1 text-xs leading-5 text-mist-500">高分更接近绿色健康区间。</p>
             </div>
           </div>
