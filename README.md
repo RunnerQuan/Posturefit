@@ -339,7 +339,7 @@ npm test -- --coverage
 | **路由** | React Router 6 |
 | **图标** | Lucide React |
 | **AI 模型** | MediaPipe BlazePose (TensorFlow.js) |
-| **AI 教练** | Coze AI Agent（GPT-4o / 豆包） |
+| **AI 教练** | Coze AI Agent（豆包） |
 | **部署** | Vercel（静态站点 + Serverless Functions） |
 | **测试** | Vitest + Testing Library + jsdom |
 
