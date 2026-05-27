@@ -1,3 +1,4 @@
+import { ISSUE_LABELS } from '../data/exercises';
 import type { CapturedPhoto, CombinedAnalysisResult, PostureAnalysisResult, PostureSession } from '../types';
 
 export function getSessionSingleAnalysis(session: PostureSession | null): PostureAnalysisResult | null {
@@ -41,4 +42,49 @@ export function getSessionDisplayPhotos(session: PostureSession | null): Capture
   }
 
   return session.photos.slice(0, 2);
+}
+
+type SessionIssueLabelOptions = {
+  healthyLabel?: string;
+  pendingLabel?: string;
+};
+
+function getDisplayIssues(displayAnalysis: PostureAnalysisResult | CombinedAnalysisResult | null) {
+  if (!displayAnalysis) {
+    return [];
+  }
+
+  if ('allIssues' in displayAnalysis) {
+    return displayAnalysis.allIssues;
+  }
+
+  return displayAnalysis.issues;
+}
+
+function hasNoAbnormalIssues(displayAnalysis: PostureAnalysisResult | CombinedAnalysisResult | null): boolean {
+  const issues = getDisplayIssues(displayAnalysis);
+  if (issues.length === 0) {
+    return true;
+  }
+
+  return issues.every(issue => issue.severity === 'normal' || issue.severity === 'undetected');
+}
+
+export function getSessionDisplayIssueLabel(
+  session: PostureSession | null,
+  options: SessionIssueLabelOptions = {}
+): string {
+  const { healthyLabel = '体态良好', pendingLabel = '待分析记录' } = options;
+  const displayAnalysis = getSessionDisplayAnalysis(session);
+  const issue = displayAnalysis?.primaryIssue ?? null;
+
+  if (issue) {
+    return ISSUE_LABELS[issue];
+  }
+
+  if (hasNoAbnormalIssues(displayAnalysis) && typeof displayAnalysis?.score === 'number' && displayAnalysis.score > 90) {
+    return healthyLabel;
+  }
+
+  return pendingLabel;
 }

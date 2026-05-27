@@ -1,7 +1,6 @@
 import { BarChart3, ImageIcon, MessageCircle, Sparkles } from 'lucide-react';
-import { ISSUE_LABELS } from '../../data/exercises';
 import { formatDate } from '../../lib/time';
-import { getSessionDisplayAnalysis, getSessionDisplayPhotos } from '../../lib/sessionAnalysis';
+import { getSessionDisplayAnalysis, getSessionDisplayIssueLabel, getSessionDisplayPhotos } from '../../lib/sessionAnalysis';
 import type { PostureSession } from '../../types';
 
 type SessionSidebarProps = {
@@ -9,11 +8,6 @@ type SessionSidebarProps = {
   currentSessionId: string | null;
   onSelect: (sessionId: string) => void;
 };
-
-function getSessionIssueLabel(session: PostureSession): string {
-  const issue = getSessionDisplayAnalysis(session)?.primaryIssue ?? null;
-  return issue ? ISSUE_LABELS[issue] : '待分析记录';
-}
 
 function getSessionScore(session: PostureSession): number | undefined {
   return getSessionDisplayAnalysis(session)?.score;
@@ -57,9 +51,13 @@ export function SessionSidebar({ sessions, currentSessionId, onSelect }: Session
                   }`}
                 >
                   <div className="flex gap-3">
-                    <div className="grid h-12 w-12 shrink-0 grid-cols-2 gap-1 overflow-hidden rounded-xl bg-blush-50">
+                    <div
+                      className={`grid h-12 w-12 shrink-0 gap-1 overflow-hidden rounded-xl bg-blush-50 ${
+                        photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'
+                      }`}
+                    >
                       {photos.length > 0 ? (
-                        photos.map(photo => (
+                        photos.slice(0, 2).map(photo => (
                           <img
                             key={photo.id}
                             src={photo.imageUrl}
@@ -76,7 +74,7 @@ export function SessionSidebar({ sessions, currentSessionId, onSelect }: Session
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="truncate text-sm font-semibold text-blush-700">{getSessionIssueLabel(session)}</p>
+                        <p className="truncate text-sm font-semibold text-blush-700">{getSessionDisplayIssueLabel(session)}</p>
                         {typeof score === 'number' && (
                           <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-mist-600">
                             {score.toFixed(1)}

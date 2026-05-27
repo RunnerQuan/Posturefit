@@ -1,6 +1,6 @@
 import { Clock3, ChevronRight } from 'lucide-react';
-import { ISSUE_LABELS } from '../../data/exercises';
 import { formatDate } from '../../lib/time';
+import { getSessionDisplayIssueLabel } from '../../lib/sessionAnalysis';
 import type { PostureSession } from '../../types';
 
 type HistoryRailProps = {
@@ -34,7 +34,6 @@ export function HistoryRail({ sessions, currentSessionId, onSelect }: HistoryRai
         ) : (
           <div className="space-y-2">
             {sessions.map(session => {
-              const issue = session.combinedAnalysis?.primaryIssue ?? session.analysis?.primaryIssue ?? null;
               const score = session.combinedAnalysis?.score ?? session.analysis?.score;
               const active = currentSessionId === session.id;
               return (
@@ -51,7 +50,7 @@ export function HistoryRail({ sessions, currentSessionId, onSelect }: HistoryRai
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium truncate ${active ? 'text-blush-700' : 'text-blush-600 group-hover:text-blush-700'}`}>
-                        {issue ? ISSUE_LABELS[issue] : '待分析记录'}
+                        {getSessionDisplayIssueLabel(session)}
                       </p>
                       <p className="text-xs text-mist-500 mt-0.5">{formatDate(session.updatedAt)}</p>
                       {typeof score === 'number' && (

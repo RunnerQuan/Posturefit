@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getSessionDisplayAnalysis, getSessionDisplayPhotos } from './sessionAnalysis';
+import { getSessionDisplayAnalysis, getSessionDisplayIssueLabel, getSessionDisplayPhotos } from './sessionAnalysis';
 import type { CombinedAnalysisResult, PostureAnalysisResult, PostureSession } from '../types';
 
 const singleAnalysis: PostureAnalysisResult = {
@@ -118,5 +118,153 @@ describe('sessionAnalysis', () => {
     });
 
     expect(getSessionDisplayPhotos(session).map(photo => photo.imageUrl)).toEqual(['current-side.png']);
+  });
+
+  it('shows healthy label when score is 100 without a primary issue', () => {
+    const session = createSession({
+      analysis: {
+        ...singleAnalysis,
+        primaryIssue: null,
+        issues: [],
+        score: 100,
+      },
+    });
+
+    expect(getSessionDisplayIssueLabel(session)).toBe('体态良好');
+  });
+
+  it('shows healthy label when analysis has no issues and score is above 90', () => {
+    const session = createSession({
+      analysis: {
+        ...singleAnalysis,
+        primaryIssue: null,
+        issues: [],
+        score: 96.6,
+      },
+    });
+
+    expect(getSessionDisplayIssueLabel(session)).toBe('体态良好');
+  });
+
+  it('shows healthy label when all analyzed issues are normal and score is above 90', () => {
+    const session = createSession({
+      analysis: {
+        ...singleAnalysis,
+        primaryIssue: null,
+        issues: [
+          {
+            type: 'pelvicTilt',
+            severity: 'normal',
+            angle: 0.4,
+            threshold: 5,
+            label: '骨盆侧倾正常',
+            view: 'front',
+          },
+          {
+            type: 'headOffset',
+            severity: 'normal',
+            angle: 0.8,
+            threshold: 5,
+            label: '头部偏移正常',
+            view: 'front',
+          },
+        ],
+        score: 100,
+      },
+    });
+
+    expect(getSessionDisplayIssueLabel(session)).toBe('体态良好');
+  });
+
+  it('shows healthy label when combined analysis has only normal issues and score is above 90', () => {
+    const sideAnalysis = { ...singleAnalysis, view: 'side' as const };
+    const session = createSession({
+      analysis: sideAnalysis,
+      combinedAnalysis: {
+        ...staleCombinedAnalysis,
+        primaryIssue: null,
+        score: 96.6,
+        allIssues: [
+          {
+            type: 'pelvicTilt',
+            severity: 'normal',
+            angle: 0.4,
+            threshold: 5,
+            label: '骨盆侧倾正常',
+            view: 'front',
+          },
+          {
+            type: 'roundedShoulder',
+            severity: 'normal',
+            angle: 1.2,
+            threshold: 25,
+            label: '圆肩正常',
+            view: 'side',
+          },
+        ],
+        issuesByView: {
+          front: [
+            {
+              type: 'pelvicTilt',
+              severity: 'normal',
+              angle: 0.4,
+              threshold: 5,
+              label: '骨盆侧倾正常',
+              view: 'front',
+            },
+          ],
+          side: [
+            {
+              type: 'roundedShoulder',
+              severity: 'normal',
+              angle: 1.2,
+              threshold: 25,
+              label: '圆肩正常',
+              view: 'side',
+            },
+          ],
+        },
+      },
+      photos: [
+        {
+          id: 'front',
+          view: 'front',
+          imageUrl: 'front.png',
+          capturedAt: '2026-05-24T00:00:00.000Z',
+          analysis: singleAnalysis,
+        },
+        {
+          id: 'side',
+          view: 'side',
+          imageUrl: 'side.png',
+          capturedAt: '2026-05-24T00:00:00.000Z',
+          analysis: sideAnalysis,
+        },
+      ],
+    });
+
+    expect(getSessionDisplayIssueLabel(session)).toBe('体态良好');
+  });
+
+  it('still shows the detected issue when score is high', () => {
+    const session = createSession({
+      analysis: {
+        ...singleAnalysis,
+        primaryIssue: 'pelvicTilt',
+        issues: [
+          {
+            type: 'pelvicTilt',
+            severity: 'mild',
+            angle: 3.2,
+            threshold: 2,
+            label: '骨盆侧倾',
+            view: 'front',
+          },
+        ],
+        score: 96.6,
+      },
+    });
+
+    expect(getSessionDisplayIssueLabel(session)).toBe('骨盆侧倾');
   });
 });
