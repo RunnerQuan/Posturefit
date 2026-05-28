@@ -173,8 +173,7 @@ function MobileChatSheet({ openPanel, onClose, historyContent, summaryContent }:
       <div className="absolute inset-x-0 bottom-0 top-[5.5rem] flex flex-col rounded-t-[30px] border border-white/60 bg-white/92 shadow-[0_-20px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl">
         <div className="flex items-center justify-between border-b border-blush-100/70 px-5 py-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-mist-400">Mobile Panel</p>
-            <h2 className="mt-1 text-xl font-semibold text-blush-700">{title}</h2>
+            <h2 className="text-xl font-semibold text-blush-700">{title}</h2>
           </div>
           <button
             type="button"
