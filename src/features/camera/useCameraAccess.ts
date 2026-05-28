@@ -14,6 +14,54 @@ export interface UseCameraAccessResult {
   captureCanvas: () => HTMLCanvasElement | null;
 }
 
+export function shouldPreferRearCamera(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const hasTouch = navigator.maxTouchPoints > 0;
+  const coarsePointer = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(pointer: coarse)').matches
+    : false;
+  const narrowViewport = window.innerWidth < 1024;
+
+  return hasTouch && coarsePointer && narrowViewport;
+}
+
+export function buildCameraConstraintCandidates(preferRearCamera: boolean): MediaStreamConstraints[] {
+  const baseVideoConstraints: MediaTrackConstraints = {
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  };
+
+  return preferRearCamera
+    ? [
+        { video: { ...baseVideoConstraints, facingMode: { exact: 'environment' } } },
+        { video: { ...baseVideoConstraints, facingMode: { ideal: 'environment' } } },
+        { video: { ...baseVideoConstraints, facingMode: 'user' } },
+      ]
+    : [
+        { video: { ...baseVideoConstraints, facingMode: 'user' } },
+        { video: { ...baseVideoConstraints, facingMode: { ideal: 'user' } } },
+      ];
+}
+
+async function requestMediaStream(preferRearCamera: boolean): Promise<MediaStream> {
+  const candidateConstraints = buildCameraConstraintCandidates(preferRearCamera);
+
+  let lastError: unknown = null;
+
+  for (const constraints of candidateConstraints) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('无法访问摄像头');
+}
+
 export function useCameraAccess(): UseCameraAccessResult {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -31,13 +79,8 @@ export function useCameraAccess(): UseCameraAccessResult {
     setError(null);
     
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user',
-        },
-      });
+      stopCamera();
+      const mediaStream = await requestMediaStream(shouldPreferRearCamera());
       
       setStream(mediaStream);
       setPermissionState('granted');
@@ -70,7 +113,7 @@ export function useCameraAccess(): UseCameraAccessResult {
       
       return false;
     }
-  }, []);
+  }, [stopCamera]);
 
   const captureFrame = useCallback((): string | null => {
     const video = videoRef.current;

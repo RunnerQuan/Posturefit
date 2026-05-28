@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, RotateCcw } from 'lucide-react';
+import { ArrowRight, ChevronDown, History, RotateCcw, X } from 'lucide-react';
 import { STEP_ORDER, canEnterStep, getStepProgress } from './app/stepMachine';
 import { StepIndicator } from './components/StepIndicator';
 import { AnalysisLoader } from './components/AnalysisLoader';
@@ -111,6 +111,87 @@ function getLatestAllowedStep(session: PostureSession | null): PostureSessionSte
   return [...STEP_ORDER].reverse().find(step => canEnterStep(session, step)) ?? 'capture';
 }
 
+function isMobileDeviceLayout(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false;
+  }
+
+  const hasTouch = navigator.maxTouchPoints > 0;
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(navigator.userAgent);
+
+  return (hasTouch && coarsePointer) || mobileUserAgent;
+}
+
+function useIsMobileViewport(): boolean {
+  const [isMobile, setIsMobile] = useState(isMobileDeviceLayout);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(pointer: coarse)');
+    const onChange = () => setIsMobile(isMobileDeviceLayout());
+
+    setIsMobile(isMobileDeviceLayout());
+    mediaQuery.addEventListener('change', onChange);
+    window.addEventListener('resize', onChange);
+    return () => {
+      mediaQuery.removeEventListener('change', onChange);
+      window.removeEventListener('resize', onChange);
+    };
+  }, []);
+
+  return isMobile;
+}
+
+type MobileChatPanelType = 'history' | 'summary' | null;
+
+type MobileChatSheetProps = {
+  openPanel: MobileChatPanelType;
+  onClose: () => void;
+  historyContent: React.ReactNode;
+  summaryContent: React.ReactNode;
+};
+
+function MobileChatSheet({ openPanel, onClose, historyContent, summaryContent }: MobileChatSheetProps) {
+  if (!openPanel) {
+    return null;
+  }
+
+  const title = openPanel === 'history' ? '历史评估' : '本次评估';
+
+  return (
+    <div className="fixed inset-0 z-[70] lg:hidden" role="dialog" aria-modal="true" aria-label={title}>
+      <button
+        type="button"
+        aria-label="关闭面板"
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm"
+      />
+      <div className="absolute inset-x-0 bottom-0 top-[5.5rem] flex flex-col rounded-t-[30px] border border-white/60 bg-white/92 shadow-[0_-20px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+        <div className="flex items-center justify-between border-b border-blush-100/70 px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-mist-400">Mobile Panel</p>
+            <h2 className="mt-1 text-xl font-semibold text-blush-700">{title}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-blush-50 text-blush-600 transition hover:bg-blush-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {openPanel === 'history' ? historyContent : summaryContent}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -133,11 +214,19 @@ function AppShell() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCoachWorking, setIsCoachWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mobileChatPanel, setMobileChatPanel] = useState<MobileChatPanelType>(null);
+  const isMobileViewport = useIsMobileViewport();
   const { detectPoseFromImage, isModelLoading } = usePoseDetection();
 
   useEffect(() => {
     saveAppState(appState);
   }, [appState]);
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      setMobileChatPanel(null);
+    }
+  }, [isMobileViewport]);
 
   const persistSession = useCallback((session: PostureSession, preferences?: Partial<UserProfile>) => {
     setAppState(previous => {
@@ -679,22 +768,25 @@ function AppShell() {
 
         {/* 主内容 */}
         <main
-          className={`relative z-10 mx-auto gap-6 px-4 ${
+          className={`relative z-10 mx-auto gap-4 px-4 ${
             currentStep === 'chat'
-              ? 'grid w-full max-w-none py-4 lg:grid-cols-[300px_minmax(0,1fr)_340px] lg:items-start'
+              ? isMobileViewport
+                ? 'flex w-full max-w-none flex-col py-4'
+                : 'grid w-full max-w-none grid-cols-[300px_minmax(0,1fr)_340px] items-start gap-6 py-4'
               : 'max-w-5xl py-8'
           }`}
         >
-          {currentStep === 'chat' && currentSession && (
+          {currentStep === 'chat' && currentSession && !isMobileViewport && (
             <SessionSidebar
               sessions={appState.sessions}
               currentSessionId={appState.currentSessionId}
               onSelect={handleSelectHistory}
+              className="h-[calc(100vh-10.5rem)] min-h-[600px]"
             />
           )}
 
           {/* 主内容区 */}
-          <section className="min-w-0 space-y-6">
+          <section className={`min-w-0 ${currentStep === 'chat' ? `flex min-h-0 flex-1 flex-col ${isMobileViewport ? 'gap-4' : 'gap-6'}` : 'space-y-6'}`}>
             {error && (
               <div className="rounded-2xl border border-red-200/50 bg-gradient-to-br from-red-50/90 to-orange-50/90 backdrop-blur-sm p-4 text-sm leading-6 text-red-600 shadow-soft">
                 {error}
@@ -781,20 +873,77 @@ function AppShell() {
             )}
 
             {currentStep === 'chat' && currentSession && (
+              <>
+                {isMobileViewport && (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:hidden">
+                    <button
+                      type="button"
+                      onClick={() => setMobileChatPanel('history')}
+                      className="group flex cursor-pointer items-center justify-between rounded-[24px] border border-white/70 bg-white/88 px-4 py-4 text-left shadow-soft backdrop-blur-md transition hover:border-blush-200 hover:bg-white"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-blush-500 to-mist-500 text-white shadow-bubble">
+                          <History className="h-5 w-5" />
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-blush-700">历史评估</p>
+                          <p className="mt-0.5 text-xs text-mist-500">展开查看最近记录</p>
+                        </div>
+                      </div>
+                      <ChevronDown className="h-5 w-5 text-mist-400 transition group-hover:text-blush-500" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMobileChatPanel('summary')}
+                      className="group flex cursor-pointer items-center justify-between rounded-[24px] border border-white/70 bg-white/88 px-4 py-4 text-left shadow-soft backdrop-blur-md transition hover:border-blush-200 hover:bg-white"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-bubble">
+                          <ArrowRight className="h-5 w-5" />
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-blush-700">本次评估</p>
+                          <p className="mt-0.5 text-xs text-mist-500">展开查看评分与图片</p>
+                        </div>
+                      </div>
+                      <ChevronDown className="h-5 w-5 text-mist-400 transition group-hover:text-blush-500" />
+                    </button>
+                  </div>
+                )}
               <CoachChat
                 messages={currentSession.chatMessages}
                 plan={currentSession.plan}
                 isResponding={isCoachWorking}
                 onFeedback={handleFeedback}
                 onRequestNewPlan={handleRequestNewPlan}
+                className={!isMobileViewport ? 'flex-none h-[calc(100vh-10.5rem)] min-h-[calc(100vh-10.5rem)]' : ''}
               />
+              </>
             )}
           </section>
 
-          {currentStep === 'chat' && currentSession && (
-            <SessionSummaryPanel session={currentSession} onRestart={handleRetry} />
+          {currentStep === 'chat' && currentSession && !isMobileViewport && (
+            <SessionSummaryPanel session={currentSession} onRestart={handleRetry} className="h-[calc(100vh-10.5rem)] min-h-[600px]" />
           )}
         </main>
+        {currentStep === 'chat' && currentSession && isMobileViewport && (
+          <MobileChatSheet
+            openPanel={mobileChatPanel}
+            onClose={() => setMobileChatPanel(null)}
+            historyContent={
+              <SessionSidebar
+                sessions={appState.sessions}
+                currentSessionId={appState.currentSessionId}
+                onSelect={sessionId => {
+                  handleSelectHistory(sessionId);
+                  setMobileChatPanel(null);
+                }}
+                className="h-full min-h-0 rounded-[24px]"
+              />
+            }
+            summaryContent={<SessionSummaryPanel session={currentSession} onRestart={handleRetry} className="h-full min-h-0 rounded-[24px]" />}
+          />
+        )}
       </div>
     </div>
   );

@@ -7,15 +7,16 @@ type SessionSidebarProps = {
   sessions: PostureSession[];
   currentSessionId: string | null;
   onSelect: (sessionId: string) => void;
+  className?: string;
 };
 
 function getSessionScore(session: PostureSession): number | undefined {
   return getSessionDisplayAnalysis(session)?.score;
 }
 
-export function SessionSidebar({ sessions, currentSessionId, onSelect }: SessionSidebarProps) {
+export function SessionSidebar({ sessions, currentSessionId, onSelect, className = '' }: SessionSidebarProps) {
   return (
-    <aside className="flex h-[calc(100vh-10.5rem)] min-h-[600px] flex-col overflow-hidden rounded-[24px] border border-white/70 bg-white/85 shadow-soft backdrop-blur-xl">
+    <aside className={`flex flex-col overflow-hidden rounded-[24px] border border-white/70 bg-white/85 shadow-soft backdrop-blur-xl ${className}`.trim()}>
       <div className="border-b border-blush-100/60 px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-blush-500 to-mist-500 text-white shadow-bubble">
@@ -31,7 +32,7 @@ export function SessionSidebar({ sessions, currentSessionId, onSelect }: Session
         {sessions.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-blush-100 bg-blush-50/50 px-4 py-8 text-center">
             <ImageIcon className="mx-auto h-7 w-7 text-mist-400" />
-            <p className="mt-3 text-sm leading-6 text-mist-500">完成评估后，这里会保存最近 10 次记录。</p>
+            <p className="mt-3 text-sm leading-6 text-mist-500">完成评估后，这里会保存最近的历史记录。</p>
           </div>
         ) : (
           <div className="space-y-2">

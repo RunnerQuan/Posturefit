@@ -5,6 +5,7 @@ import type { BodyState, CoachStyle, PostureSession } from '../../types';
 type SessionSummaryPanelProps = {
   session: PostureSession;
   onRestart: () => void;
+  className?: string;
 };
 
 const BODY_STATE_LABELS: Record<BodyState, string> = {
@@ -38,7 +39,7 @@ function getScoreColor(score: number | undefined): string {
   return '#22c55e';
 }
 
-export function SessionSummaryPanel({ session, onRestart }: SessionSummaryPanelProps) {
+export function SessionSummaryPanel({ session, onRestart, className = '' }: SessionSummaryPanelProps) {
   const score = getScore(session);
   const scoreValue = typeof score === 'number' ? score : 0;
   const scoreColor = getScoreColor(score);
@@ -50,7 +51,7 @@ export function SessionSummaryPanel({ session, onRestart }: SessionSummaryPanelP
       : [];
 
   return (
-    <aside className="flex h-[calc(100vh-10.5rem)] min-h-[600px] flex-col overflow-hidden rounded-[24px] border border-white/70 bg-white/85 shadow-soft backdrop-blur-xl">
+    <aside className={`flex flex-col overflow-hidden rounded-[24px] border border-white/70 bg-white/85 shadow-soft backdrop-blur-xl ${className}`.trim()}>
       <div className="border-b border-blush-100/60 px-5 py-3">
         <h2 className="text-lg font-semibold text-blush-700">本次评估</h2>
       </div>
