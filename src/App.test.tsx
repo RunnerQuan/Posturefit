@@ -206,4 +206,98 @@ describe('App frontend B flow', () => {
     expect(session.analysis.view).toBe('side');
     expect(session.analysis.issues.map((issue: { type: string }) => issue.type)).not.toContain('shoulderImbalance');
   });
+
+  it('shows mobile chat entry points and opens summary sheet on small screens', async () => {
+    const now = new Date().toISOString();
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      configurable: true,
+      value: 5,
+    });
+    vi.mocked(window.matchMedia).mockImplementation(query => ({
+      matches: query === '(max-width: 1023px)' || query === '(pointer: coarse)',
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }));
+
+    localStorage.setItem('posturefit.appState.v1', JSON.stringify({
+      currentSessionId: 'mobile-session',
+      schemaVersion: 2,
+      sessions: [
+        {
+          id: 'mobile-session',
+          createdAt: now,
+          updatedAt: now,
+          step: 'chat',
+          sourceType: 'upload',
+          captureMode: 'fullBody',
+          viewSelection: 'dual',
+          photos: [],
+          analysis: {
+            keypoints: [],
+            metrics: {
+              forwardHeadAngle: 50,
+              roundedShoulderAngle: 1,
+              shoulderImbalanceAngle: 1,
+              pelvicTiltAngle: 1,
+              anteriorTiltAngle: 1,
+              kneeValgusAngle: 1,
+              headOffsetAngle: 1,
+              centerOfGravityShiftAngle: 1,
+              hunchbackAngle: 1,
+              kneeHyperextensionAngle: 177,
+              trunkLeanAngle: 0,
+            },
+            issues: [],
+            primaryIssue: null,
+            score: 98.6,
+            analyzedAt: now,
+            view: 'front',
+          },
+          combinedAnalysis: {
+            allIssues: [],
+            issuesByView: { front: [], side: [] },
+            primaryIssue: null,
+            score: 98.6,
+            frontViewScore: { view: 'front', items: [], normalizedScore: 98.6 },
+            sideViewScore: { view: 'side', items: [], normalizedScore: 98.6 },
+            allScores: [],
+            analyzedAt: now,
+          },
+          profile: {
+            coachStyle: 'humorous',
+            coachGender: 'female',
+            userGoal: '改善体态',
+            bodyState: 'fatigued',
+          },
+          plan: {
+            id: 'plan-1',
+            sessionId: 'mobile-session',
+            primaryIssue: null,
+            createdAt: now,
+            intensity: 'low',
+            exercises: [],
+          },
+          chatMessages: [
+            { id: 'm1', role: 'assistant', content: '移动端测试消息', createdAt: now, source: 'mock' },
+          ],
+        },
+      ],
+    }));
+    window.history.pushState(null, '', '/chat');
+
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: /历史评估/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /本次评估/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '新建评估' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /本次评估/ }));
+    expect(await screen.findByRole('button', { name: '关闭面板' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '新建评估' })).toBeInTheDocument();
+  });
 });

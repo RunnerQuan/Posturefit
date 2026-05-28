@@ -13,14 +13,13 @@ type CoachChatProps = {
   isResponding: boolean;
   onFeedback: (feedback: CheckInFeedback, feedbackText?: string) => void;
   onRequestNewPlan: () => void;
+  className?: string;
 };
 
 const FEEDBACK_LABELS: Record<CheckInFeedback, string> = {
   completed: '做完了',
   tooTired: '太累了',
 };
-
-const AVATAR_SIZE_CLASS = 'h-14 w-14';
 
 function ExerciseCards({ exercises }: { exercises: Exercise[] }) {
   if (exercises.length === 0) {
@@ -65,7 +64,7 @@ function ExerciseCards({ exercises }: { exercises: Exercise[] }) {
   );
 }
 
-export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestNewPlan }: CoachChatProps) {
+export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestNewPlan, className = '' }: CoachChatProps) {
   const [feedbackText, setFeedbackText] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -83,10 +82,12 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
   }, [messages, isResponding]);
 
   return (
-    <section className="mx-auto flex h-[calc(100vh-10.5rem)] min-h-[600px] w-full flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md">
+    <section
+      className={`mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
+    >
       <div
         ref={scrollContainerRef}
-        className="min-h-0 flex-1 overflow-y-auto scroll-smooth border border-white/40 bg-white/70 px-5 py-5 backdrop-blur-sm custom-scrollbar"
+        className="min-h-0 flex-1 overflow-y-auto scroll-smooth border border-white/40 bg-white/70 px-3 py-4 backdrop-blur-sm custom-scrollbar sm:px-4 lg:px-5 lg:py-5"
         aria-live="polite"
       >
         {messages.map(message => {
@@ -94,17 +95,17 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
           const isStreamingDraft = !isUser && !message.content && isResponding;
           const messageExercises = isUser ? [] : extractExercisesFromMessage(message.content, plan?.primaryIssue ?? null);
           return (
-            <div key={message.id} className={`mx-auto flex w-full max-w-4xl gap-4 py-5 ${isUser ? 'justify-end' : 'justify-start'}`}>
+            <div key={message.id} className={`mx-auto flex w-full max-w-4xl gap-2 py-3 sm:gap-3 lg:gap-4 lg:py-5 ${isUser ? 'justify-end' : 'justify-start'}`}>
               {!isUser && (
-                <div className={`mt-1 ${AVATAR_SIZE_CLASS} shrink-0 overflow-hidden rounded-full border border-white/80 bg-blush-50 shadow-sm`}>
+                <div className="mt-1 h-10 w-10 shrink-0 overflow-hidden rounded-full border border-white/80 bg-blush-50 shadow-sm sm:h-12 sm:w-12 lg:h-14 lg:w-14">
                   <img src={coachAvatar} alt="" className="h-full w-full object-cover" />
                 </div>
               )}
               <div
                 className={`text-base leading-7 ${
                   isUser
-                    ? 'chat-liquid-bubble chat-liquid-bubble-user max-w-[72%] rounded-[26px] px-5 py-3 text-gray-950'
-                    : 'chat-liquid-bubble max-w-[min(900px,calc(100%-3rem))] rounded-[30px] px-5 py-4 text-gray-900'
+                    ? 'chat-liquid-bubble chat-liquid-bubble-user max-w-[84%] rounded-[24px] px-4 py-3 text-gray-950 sm:max-w-[78%] lg:max-w-[72%] lg:rounded-[26px] lg:px-5'
+                    : 'chat-liquid-bubble max-w-[calc(100%-3rem)] rounded-[24px] px-4 py-4 text-gray-900 sm:max-w-[min(900px,calc(100%-3.5rem))] lg:max-w-[min(900px,calc(100%-3rem))] lg:rounded-[30px] lg:px-5'
                 }`}
               >
                 {isStreamingDraft ? (
@@ -131,7 +132,7 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
                 )}
               </div>
               {isUser && (
-                <div className={`mt-1 ${AVATAR_SIZE_CLASS} shrink-0 overflow-hidden rounded-full border border-white/80 bg-emerald-50 shadow-sm`}>
+                <div className="mt-1 h-10 w-10 shrink-0 overflow-hidden rounded-full border border-white/80 bg-emerald-50 shadow-sm sm:h-12 sm:w-12 lg:h-14 lg:w-14">
                   <img src={userAvatar} alt="" className="h-full w-full object-cover" />
                 </div>
               )}
@@ -142,7 +143,7 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
       </div>
 
       <form
-        className="sticky bottom-0 z-20 rounded-b-[32px] border-t border-white/30 bg-white/80 backdrop-blur-xl px-5 py-4"
+        className="sticky bottom-0 z-20 rounded-b-[32px] border-t border-white/30 bg-white/90 backdrop-blur-xl px-3 py-3 sm:px-4 lg:px-5 lg:py-4"
         onSubmit={event => {
           event.preventDefault();
           if (!feedbackText.trim() || isResponding) {
