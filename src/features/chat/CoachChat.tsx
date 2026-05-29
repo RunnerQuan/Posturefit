@@ -210,6 +210,25 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
     <section
       className={`relative mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
     >
+      <div className="fixed right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-2 rounded-full border border-white/70 bg-white/45 p-1 shadow-soft backdrop-blur-xl md:hidden">
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-white/92 text-mist-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300"
+          aria-label="移动端回到顶部"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => scrollToBottom('smooth')}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-white/92 text-blush-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-300"
+          aria-label="移动端查看最新回复"
+        >
+          <ArrowDown className="h-5 w-5" />
+        </button>
+      </div>
+
       <div
         ref={scrollContainerRef}
         onScroll={event => updateScrollState(event.currentTarget)}
@@ -273,7 +292,7 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
         <button
           type="button"
           onClick={scrollToTop}
-          className="absolute right-4 top-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/92 px-3.5 py-2 text-xs font-medium text-mist-700 shadow-soft backdrop-blur-xl transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300 sm:right-6 sm:px-4 sm:text-sm"
+          className="absolute right-4 top-4 z-30 hidden items-center gap-2 rounded-full border border-white/80 bg-white/92 px-3.5 py-2 text-xs font-medium text-mist-700 shadow-soft backdrop-blur-xl transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300 md:inline-flex sm:right-6 sm:px-4 sm:text-sm"
           aria-label="回到顶部"
         >
           <ArrowUp className="h-4 w-4" />
@@ -285,7 +304,7 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
         <button
           type="button"
           onClick={() => scrollToBottom('smooth')}
-          className="absolute bottom-[18rem] right-5 z-30 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/92 px-4 py-2 text-sm font-medium text-blush-700 shadow-soft backdrop-blur-xl transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-300 md:bottom-28 md:right-6"
+          className="absolute bottom-[18rem] right-5 z-30 hidden items-center gap-2 rounded-full border border-white/80 bg-white/92 px-4 py-2 text-sm font-medium text-blush-700 shadow-soft backdrop-blur-xl transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-300 md:bottom-28 md:right-6 md:inline-flex"
           aria-label="回到底部查看最新回复"
         >
           <ArrowDown className="h-4 w-4" />

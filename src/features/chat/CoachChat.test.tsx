@@ -77,6 +77,31 @@ describe('CoachChat', () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
   });
 
+  it('always renders mobile quick scroll arrows', () => {
+    const scrollTo = vi.fn();
+    render(
+      <CoachChat
+        messages={[
+          createMessage('a1', 'assistant', '第一条消息'),
+          createMessage('a2', 'assistant', '第二条消息'),
+        ]}
+        isResponding={false}
+        onFeedback={vi.fn()}
+        onRequestNewPlan={vi.fn()}
+      />
+    );
+
+    const scroller = screen.getByText('第一条消息').closest('[aria-live="polite"]') as HTMLDivElement;
+    mockScrollerMetrics(scroller, scrollTo);
+
+    fireEvent.click(screen.getByRole('button', { name: '移动端回到顶部' }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+
+    scrollTo.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: '移动端查看最新回复' }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1400, behavior: 'smooth' });
+  });
+
   it('shows a top button when the mobile page scrolls down', () => {
     const windowScrollTo = vi.mocked(window.scrollTo);
     windowScrollTo.mockClear();
