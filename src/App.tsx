@@ -399,7 +399,7 @@ function AppShell() {
 
   useEffect(() => {
     if (currentSession && canEnterStep(currentSession, currentStep) && currentSession.step !== currentStep) {
-      persistSession(updateSession(currentSession, { step: currentStep }));
+      persistSession(updateSession(currentSession, { step: currentStep }, { preserveUpdatedAt: true }));
     }
   }, [currentSession, currentStep, persistSession]);
 
@@ -408,8 +408,15 @@ function AppShell() {
       if (!canEnterStep(currentSession, step)) {
         return;
       }
+      if (step === 'capture' && currentSession && !isCaptureDraftSession(currentSession)) {
+        setAppState(previous => ({ ...previous, currentSessionId: null }));
+        setCurrentCaptureView(null);
+        setError(null);
+        navigateToStep('capture');
+        return;
+      }
       if (currentSession) {
-        persistSession(updateSession(currentSession, { step }));
+        persistSession(updateSession(currentSession, { step }, { preserveUpdatedAt: true }));
       }
       navigateToStep(step);
     },
@@ -847,12 +854,21 @@ function AppShell() {
       if (!session) {
         return;
       }
-      setAppState(previous => ({ ...previous, currentSessionId: sessionId }));
+      const nextStep = canEnterStep(session, 'chat') ? 'chat' : getLatestAllowedStep(session);
+      setAppState(previous => ({
+        ...previous,
+        currentSessionId: sessionId,
+        sessions: previous.sessions.map(item => (
+          item.id === sessionId && item.step !== nextStep
+            ? updateSession(item, { step: nextStep }, { preserveUpdatedAt: true })
+            : item
+        )),
+      }));
       setCaptureMode(session.captureMode);
       setViewSelection(session.viewSelection);
       setCurrentCaptureView(null);
       setError(null);
-      navigateToStep(session.step);
+      navigateToStep(nextStep);
     },
     [appState.sessions, navigateToStep]
   );
@@ -864,6 +880,10 @@ function AppShell() {
   const displayAnalysis = getSessionDisplayAnalysis(currentSession);
   const failedAnalysisPhotos = photos.filter(photo => getPhotoAnalysisStatus(photo) === 'failed');
   const hasAnalysisFailure = failedAnalysisPhotos.length > 0;
+  const chatHistorySessions = useMemo(
+    () => appState.sessions.filter(session => canEnterStep(session, 'chat')),
+    [appState.sessions]
+  );
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -980,7 +1000,7 @@ function AppShell() {
         >
           {currentStep === 'chat' && currentSession && !isMobileViewport && (
             <SessionSidebar
-              sessions={appState.sessions}
+              sessions={chatHistorySessions}
               currentSessionId={appState.currentSessionId}
               onSelect={handleSelectHistory}
               className="h-[calc(100vh-10.5rem)] min-h-[600px]"
@@ -1146,7 +1166,7 @@ function AppShell() {
             onClose={() => setMobileChatPanel(null)}
             historyContent={
               <SessionSidebar
-                sessions={appState.sessions}
+                sessions={chatHistorySessions}
                 currentSessionId={appState.currentSessionId}
                 onSelect={sessionId => {
                   handleSelectHistory(sessionId);

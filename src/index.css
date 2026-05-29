@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -85,6 +85,10 @@
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(180deg, #f472b6, #c084fc);
+  }
+
+  .landing-display-font {
+    font-family: 'Noto Serif SC', 'Songti SC', 'STSong', 'Noto Sans SC', 'PingFang SC', serif;
   }
 }
 

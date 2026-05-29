@@ -16,6 +16,13 @@ function hasRequiredSuccessfulAnalysis(session: PostureSession): boolean {
     if (session.photos.length === 0) {
       return Boolean(session.combinedAnalysis);
     }
+    if (
+      session.photos.some(photo => photo.view === 'front') &&
+      session.photos.some(photo => photo.view === 'side') &&
+      session.combinedAnalysis
+    ) {
+      return true;
+    }
     return Boolean(
       session.photos.find(photo => photo.view === 'front' && photo.analysis) &&
       session.photos.find(photo => photo.view === 'side' && photo.analysis) &&
@@ -26,7 +33,10 @@ function hasRequiredSuccessfulAnalysis(session: PostureSession): boolean {
   if (session.photos.length === 0) {
     return Boolean(session.analysis);
   }
-  return Boolean(session.photos.find(photo => photo.view === session.viewSelection && photo.analysis));
+  return Boolean(
+    session.photos.find(photo => photo.view === session.viewSelection && photo.analysis) ||
+    session.analysis?.view === session.viewSelection
+  );
 }
 
 export function canEnterStep(session: PostureSession | null, step: PostureSessionStep): boolean {

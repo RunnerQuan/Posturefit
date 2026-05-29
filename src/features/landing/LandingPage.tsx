@@ -37,15 +37,15 @@ function DecorativeBubble({ className = '' }: DecorativeBubbleProps) {
     <span
       aria-hidden="true"
       className={`
-        pointer-events-none absolute rounded-full border border-white/45
-        bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.88),rgba(255,255,255,0.32)_28%,rgba(216,180,254,0.18)_58%,rgba(125,211,252,0.12)_100%)]
-        shadow-[inset_4px_5px_12px_rgba(255,255,255,0.46),inset_-8px_-10px_18px_rgba(168,85,247,0.12),0_8px_24px_rgba(216,180,254,0.18)]
+        pointer-events-none absolute rounded-full border border-white/32
+        bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.58),rgba(255,255,255,0.18)_28%,rgba(216,180,254,0.10)_58%,rgba(125,211,252,0.07)_100%)]
+        shadow-[inset_4px_5px_12px_rgba(255,255,255,0.30),inset_-8px_-10px_18px_rgba(168,85,247,0.07),0_8px_24px_rgba(216,180,254,0.10)]
         backdrop-blur-md
         ${className}
       `}
     >
-      <span className="absolute left-[26%] top-[20%] h-1.5 w-1.5 rounded-full bg-white/85 shadow-[0_0_10px_rgba(255,255,255,0.85)]" />
-      <span className="absolute inset-[2px] rounded-full border border-white/25" />
+      <span className="absolute left-[26%] top-[20%] h-1.5 w-1.5 rounded-full bg-white/60 shadow-[0_0_10px_rgba(255,255,255,0.55)]" />
+      <span className="absolute inset-[2px] rounded-full border border-white/18" />
     </span>
   );
 }
@@ -55,31 +55,31 @@ function FeatureBubble({ icon: Icon, title, desc, size = 'md', className = '' }:
     <div
       className={`
         pointer-events-none relative isolate overflow-hidden rounded-full
-        border border-white/55 bg-[radial-gradient(circle_at_28%_18%,rgba(255,255,255,0.88),rgba(255,255,255,0.34)_23%,rgba(252,231,243,0.22)_48%,rgba(216,180,254,0.12)_70%,rgba(125,211,252,0.10)_100%)]
-        shadow-[inset_9px_10px_22px_rgba(255,255,255,0.52),inset_-18px_-20px_34px_rgba(168,85,247,0.12),0_12px_45px_rgba(236,72,153,0.16),0_0_38px_rgba(125,211,252,0.12)]
+        border border-white/38 bg-[radial-gradient(circle_at_28%_18%,rgba(255,255,255,0.56),rgba(255,255,255,0.17)_23%,rgba(252,231,243,0.12)_48%,rgba(216,180,254,0.07)_70%,rgba(125,211,252,0.06)_100%)]
+        shadow-[inset_9px_10px_22px_rgba(255,255,255,0.34),inset_-18px_-20px_34px_rgba(168,85,247,0.07),0_12px_45px_rgba(236,72,153,0.10),0_0_38px_rgba(125,211,252,0.08)]
         backdrop-blur-xl
         flex flex-col items-center justify-center
         ${bubbleSizeClass[size]}
         ${className}
       `}
     >
-      <span className="absolute inset-[3px] rounded-full border border-white/35" />
-      <span className="absolute -left-3 top-2 h-1/2 w-3/4 rotate-[-22deg] rounded-full bg-gradient-to-br from-white/70 via-white/24 to-transparent blur-[2px]" />
-      <span className="absolute -right-4 bottom-2 h-1/2 w-2/3 rounded-full bg-gradient-to-br from-sky-200/18 via-mist-300/16 to-blush-300/22 blur-md" />
-      <span className="absolute left-[21%] top-[16%] h-2 w-2 rounded-full bg-white/90 shadow-[0_0_14px_rgba(255,255,255,0.95)]" />
-      <span className="absolute right-[18%] top-[28%] h-1.5 w-1.5 rounded-full bg-white/70 shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
-      <span className="absolute inset-0 rounded-full bg-[conic-gradient(from_130deg,rgba(255,255,255,0.0),rgba(244,114,182,0.18),rgba(192,132,252,0.20),rgba(125,211,252,0.20),rgba(255,255,255,0.0))] opacity-70 mix-blend-screen" />
+      <span className="absolute inset-[3px] rounded-full border border-white/24" />
+      <span className="absolute -left-3 top-2 h-1/2 w-3/4 rotate-[-22deg] rounded-full bg-gradient-to-br from-white/42 via-white/14 to-transparent blur-[2px]" />
+      <span className="absolute -right-4 bottom-2 h-1/2 w-2/3 rounded-full bg-gradient-to-br from-sky-200/10 via-mist-300/10 to-blush-300/12 blur-md" />
+      <span className="absolute left-[21%] top-[16%] h-2 w-2 rounded-full bg-white/62 shadow-[0_0_14px_rgba(255,255,255,0.62)]" />
+      <span className="absolute right-[18%] top-[28%] h-1.5 w-1.5 rounded-full bg-white/46 shadow-[0_0_10px_rgba(255,255,255,0.48)]" />
+      <span className="absolute inset-0 rounded-full bg-[conic-gradient(from_130deg,rgba(255,255,255,0.0),rgba(244,114,182,0.10),rgba(192,132,252,0.11),rgba(125,211,252,0.11),rgba(255,255,255,0.0))] opacity-45 mix-blend-screen" />
 
       <div
         className={`
           relative z-10 flex items-center justify-center rounded-full
-          bg-white/18 text-white shadow-[inset_0_1px_10px_rgba(255,255,255,0.5),0_0_18px_rgba(255,255,255,0.24)]
+          bg-white/12 text-white shadow-[inset_0_1px_10px_rgba(255,255,255,0.32),0_0_18px_rgba(255,255,255,0.14)]
           ${iconSizeClass[size]}
         `}
       >
         <Icon className="h-1/2 w-1/2 text-white drop-shadow-[0_1px_6px_rgba(219,39,119,0.42)]" strokeWidth={1.6} />
       </div>
-      <span className={`relative z-10 font-semibold text-[#5f2a78] drop-shadow-[0_1px_8px_rgba(255,255,255,0.7)] ${textSizeClass[size]}`}>
+      <span className={`landing-display-font relative z-10 font-semibold text-[#5f2a78] drop-shadow-[0_1px_8px_rgba(255,255,255,0.7)] ${textSizeClass[size]}`}>
         {title}
       </span>
       <span className="relative z-10 text-[10px] font-semibold text-[#704089]/90 drop-shadow-[0_1px_6px_rgba(255,255,255,0.72)] sm:text-xs">
@@ -179,47 +179,47 @@ export function LandingPage() {
                 {/* 玻璃反光底层 */}
                 <div className="absolute inset-0 blur-3xl opacity-80 bg-gradient-to-b from-pink-300 via-pink-200 to-pink-400 scale-110" />
                 {/* 副标题 */}
-                <p className="relative text-2xl md:text-3xl font-semibold tracking-[0.4em] mb-6 italic" style={{
-                  WebkitTextStroke: '1.5px rgba(255, 255, 255, 0.9)',
+                <p className="landing-display-font relative mb-6 text-2xl font-semibold tracking-[0.34em] md:text-3xl" style={{
+                  WebkitTextStroke: '1px rgba(255, 255, 255, 0.86)',
                   WebkitTextFillColor: 'transparent',
-                  backgroundImage: 'linear-gradient(180deg, #fff 0%, #ffb6c1 50%, #ff69b4 100%)',
+                  backgroundImage: 'linear-gradient(180deg, #fff 0%, #ffe4ef 48%, #ff8bc7 100%)',
                   WebkitBackgroundClip: 'text',
                   backgroundClip: 'text',
                 }}>
                   你的专属
                 </p>
                 {/* 主标题 */}
-                <h1 className="relative text-6xl md:text-7xl lg:text-8xl xl:text-9xl font-serif font-bold italic tracking-wide">
+                <h1 className="landing-display-font relative text-[3.7rem] font-semibold leading-none tracking-[0.04em] md:text-7xl lg:text-8xl xl:text-9xl">
                   {/* 白色描边 + 粉色渐变 + 玻璃反光 */}
                   <span style={{
-                    WebkitTextStroke: '3px rgba(255, 255, 255, 0.9)',
+                    WebkitTextStroke: '2px rgba(255, 255, 255, 0.88)',
                     textShadow: `
-                      0 0 40px rgba(255, 182, 193, 0.8),
-                      0 0 80px rgba(255, 192, 203, 0.6),
+                      0 0 34px rgba(255, 182, 193, 0.62),
+                      0 0 68px rgba(255, 192, 203, 0.42),
                       1px 1px 0 #fff,
                       -1px -1px 0 #fff,
                       1px -1px 0 #fff,
                       -1px 1px 0 #fff
                     `,
                     WebkitTextFillColor: 'transparent',
-                    backgroundImage: 'linear-gradient(180deg, #fff 0%, #ffb6c1 40%, #ff69b4 100%)',
+                    backgroundImage: 'linear-gradient(180deg, #fff 0%, #ffe0eb 42%, #ff7abc 100%)',
                     WebkitBackgroundClip: 'text',
                     backgroundClip: 'text',
                   }}>
                     AI
                   </span>
                   <span style={{
-                    WebkitTextStroke: '3px rgba(255, 255, 255, 0.9)',
+                    WebkitTextStroke: '2px rgba(255, 255, 255, 0.88)',
                     textShadow: `
-                      0 0 40px rgba(255, 182, 193, 0.8),
-                      0 0 80px rgba(255, 192, 203, 0.6),
+                      0 0 34px rgba(255, 182, 193, 0.62),
+                      0 0 68px rgba(255, 192, 203, 0.42),
                       1px 1px 0 #fff,
                       -1px -1px 0 #fff,
                       1px -1px 0 #fff,
                       -1px 1px 0 #fff
                     `,
                     WebkitTextFillColor: 'transparent',
-                    backgroundImage: 'linear-gradient(180deg, #fff 0%, #ffb6c1 40%, #ff1493 100%)',
+                    backgroundImage: 'linear-gradient(180deg, #fff 0%, #ffe0eb 42%, #ff3f9f 100%)',
                     WebkitBackgroundClip: 'text',
                     backgroundClip: 'text',
                   }}>
@@ -231,10 +231,10 @@ export function LandingPage() {
                 {/* 底部反光 */}
                 <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-1/2 h-1/3 bg-gradient-to-t from-pink-200/40 to-transparent rounded-full blur-lg pointer-events-none" />
               </div>
-              <p className="mt-6 text-xl md:text-2xl font-semibold tracking-widest" style={{
-                WebkitTextStroke: '1px rgba(255, 255, 255, 0.8)',
+              <p className="landing-display-font mt-6 text-xl font-semibold tracking-widest md:text-2xl" style={{
+                WebkitTextStroke: '0.8px rgba(255, 255, 255, 0.76)',
                 WebkitTextFillColor: 'transparent',
-                backgroundImage: 'linear-gradient(180deg, #fff 0%, #ffc0cb 50%, #ff69b4 100%)',
+                backgroundImage: 'linear-gradient(180deg, #fff 0%, #ffe4ef 50%, #ff8bc7 100%)',
                 WebkitBackgroundClip: 'text',
                 backgroundClip: 'text',
               }}>
@@ -245,7 +245,7 @@ export function LandingPage() {
             {/* CTA 按钮 */}
             <button
               onClick={() => navigate('/capture')}
-              className="group relative px-12 py-5 text-lg font-semibold text-white
+              className="landing-display-font group relative px-12 py-5 text-xl font-semibold text-white
                         bg-gradient-to-br from-blush-400 via-mist-400 to-sky-300
                         rounded-full shadow-[0_8px_30px_rgba(236,72,153,0.35)]
                         hover:shadow-[0_12px_40px_rgba(236,72,153,0.45)]
