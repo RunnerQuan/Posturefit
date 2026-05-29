@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { analyzePose } from '../../features/analysis/postureAnalyzer';
-import { calculateAllPostureAngles } from '../../features/analysis/angleCalculator';
+import {
+  calculateAllPostureAngles,
+  calculateForwardHeadAngle,
+  calculateHeadOffsetAngle,
+  calculateKneeHyperextensionAngle,
+  calculateKneeValgusAngle,
+} from '../../features/analysis/angleCalculator';
 import type { BlazePoseLandmark, PoseKeypoint33 } from '../../types';
 
 function keypoint33(name: BlazePoseLandmark, x: number, y: number): PoseKeypoint33 {
   return { name, x, y, score: 0.95 };
+}
+
+function missingKeypoint33(name: BlazePoseLandmark, x: number = 0, y: number = 0): PoseKeypoint33 {
+  return { name, x, y, score: 0 };
 }
 
 // MediaPipe BlazePose 33 点正面站立姿势
@@ -90,8 +100,10 @@ describe('calculateAllPostureAngles', () => {
     const metrics = calculateAllPostureAngles(uprightFrontViewPose());
 
     // 高低肩、肩部水平应该接近 0
-    expect(Math.abs(metrics.shoulderImbalanceAngle)).toBeLessThan(1);
-    expect(Math.abs(metrics.pelvicTiltAngle)).toBeLessThan(1);
+    expect(metrics.shoulderImbalanceAngle).not.toBeNull();
+    expect(metrics.pelvicTiltAngle).not.toBeNull();
+    expect(Math.abs(metrics.shoulderImbalanceAngle ?? Number.POSITIVE_INFINITY)).toBeLessThan(1);
+    expect(Math.abs(metrics.pelvicTiltAngle ?? Number.POSITIVE_INFINITY)).toBeLessThan(1);
   });
 
   it('calculates angles for side-view pose', () => {
@@ -107,8 +119,8 @@ describe('calculateAllPostureAngles', () => {
   it('classifies an upright front-view pose as mostly normal', () => {
     const result = analyzePose(uprightFrontViewPose(), { view: 'front' });
 
-    // 站立姿势应该有合理评分
-    expect(result.score).toBeGreaterThanOrEqual(0);
+    // 单视角使用与双视角一致的正常项满分高斯评分
+    expect(result.score).toBe(100);
   });
 
   it('classifies an upright side-view pose as mostly normal', () => {
@@ -116,5 +128,65 @@ describe('calculateAllPostureAngles', () => {
 
     // 站立姿势应该有合理评分
     expect(result.score).toBeGreaterThanOrEqual(0);
+  });
+
+  it('returns actual CVA for forward head instead of deviation from normal', () => {
+    const upright = uprightSideViewPose();
+    const forward = upright.map(point =>
+      point.name === 'left_ear' ? keypoint33('left_ear', 155, 45) : point
+    );
+
+    expect(calculateForwardHeadAngle(upright)).toBeGreaterThan(50);
+    expect(calculateForwardHeadAngle(forward)).toBeLessThan(50);
+  });
+
+  it('returns null instead of a normal value when required front-view keypoints are missing', () => {
+    const pose = uprightFrontViewPose().map(point =>
+      point.name === 'left_shoulder' ? missingKeypoint33('left_shoulder') : point
+    );
+
+    const metrics = calculateAllPostureAngles(pose);
+
+    expect(metrics.shoulderImbalanceAngle).toBeNull();
+    expect(metrics.headOffsetAngle).toBeNull();
+  });
+
+  it('uses face-center fallback for head offset when the nose is missing', () => {
+    const pose = uprightFrontViewPose().map(point =>
+      point.name === 'nose' ? missingKeypoint33('nose') : point
+    );
+
+    expect(calculateHeadOffsetAngle(pose)).not.toBeNull();
+    expect(calculateHeadOffsetAngle(pose)).toBeLessThan(1);
+  });
+
+  it('increases knee valgus score for knee offset even when the knee angle remains nearly straight', () => {
+    const neutral = uprightFrontViewPose();
+    const valgus = neutral.map(point => {
+      if (point.name === 'left_knee') return keypoint33('left_knee', 100, 320);
+      if (point.name === 'right_knee') return keypoint33('right_knee', 100, 320);
+      return point;
+    });
+
+    expect(calculateKneeValgusAngle(valgus)).toBeGreaterThan(calculateKneeValgusAngle(neutral) ?? 0);
+  });
+
+  it('can analyze the visible side when the far side is hidden', () => {
+    const pose = uprightSideViewPose().map(point =>
+      point.name.startsWith('right_') ? { ...point, score: 0 } : point
+    );
+
+    expect(calculateForwardHeadAngle(pose)).not.toBeNull();
+    expect(calculateAllPostureAngles(pose).roundedShoulderAngle).not.toBeNull();
+  });
+
+  it('uses a signed side-view rule for knee hyperextension', () => {
+    const neutral = uprightSideViewPose();
+    const hyperextended = neutral.map(point =>
+      point.name === 'left_knee' ? keypoint33('left_knee', 70, 320) : point
+    );
+
+    expect(calculateKneeHyperextensionAngle(neutral)).toBeGreaterThanOrEqual(170);
+    expect(calculateKneeHyperextensionAngle(hyperextended)).toBeGreaterThan(185);
   });
 });

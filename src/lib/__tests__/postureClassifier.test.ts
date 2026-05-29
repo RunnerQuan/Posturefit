@@ -6,8 +6,10 @@ import {
   findPrimaryIssue,
   calculatePostureScore,
   calculateIssueScore,
+  calculatePostureScoreWithNormalization,
   DEFAULT_THRESHOLDS,
 } from '../../features/analysis/postureClassifier';
+import { ISSUE_LABELS } from '../../data/exercises';
 
 describe('classifyPostureIssue', () => {
   describe('forwardHead', () => {
@@ -141,11 +143,97 @@ describe('classifyAllPostureIssues', () => {
     expect(issues.map(issue => issue.type)).not.toContain('centerOfGravityShift');
     expect(issues.map(issue => issue.type)).not.toContain('anteriorPelvicTilt');
   });
+
+  it('marks null metrics as undetected', () => {
+    const issues = classifyAllPostureIssues(
+      {
+        ...metrics,
+        shoulderImbalanceAngle: null,
+        kneeHyperextensionAngle: null,
+      },
+      DEFAULT_THRESHOLDS,
+      'front'
+    );
+
+    expect(issues.find(i => i.type === 'shoulderImbalance')?.severity).toBe('undetected');
+  });
 });
 
 describe('calculateIssueScore', () => {
   it('groups forward head under side-view scoring', () => {
     expect(calculateIssueScore('forwardHead', 40).view).toBe('side');
+  });
+
+  it('scores the ideal center as 100 and the normal boundary near 90', () => {
+    const centerScore = calculateIssueScore({
+      type: 'roundedShoulder',
+      severity: 'normal',
+      angle: 0,
+      threshold: 25,
+      label: '圆肩倾向正常',
+      view: 'side',
+    });
+    const boundaryScore = calculateIssueScore({
+      type: 'roundedShoulder',
+      severity: 'normal',
+      angle: 20,
+      threshold: 25,
+      label: '圆肩倾向正常',
+      view: 'side',
+    });
+
+    expect(centerScore.gaussianScore).toBe(100);
+    expect(boundaryScore.gaussianScore).toBeCloseTo(90, 5);
+  });
+
+  it('starts forward-head decay only below the normal CVA boundary', () => {
+    expect(calculateIssueScore({
+      type: 'forwardHead',
+      severity: 'normal',
+      angle: 50,
+      threshold: 45,
+      label: '头前伸正常',
+      view: 'side',
+    }).gaussianScore).toBe(100);
+    const mildScore = calculateIssueScore({
+      type: 'forwardHead',
+      severity: 'mild',
+      angle: 45,
+      threshold: 45,
+      label: '头前伸轻度异常',
+      view: 'side',
+    }).gaussianScore;
+    expect(mildScore).toBeGreaterThan(75);
+    expect(mildScore).toBeLessThan(90);
+  });
+
+  it('scores knee hyperextension center as 100, normal boundary near 90, and decays outside it', () => {
+    expect(calculateIssueScore({
+      type: 'kneeHyperextension',
+      severity: 'normal',
+      angle: 177,
+      threshold: 165,
+      label: '膝超伸正常',
+      view: 'side',
+    }).gaussianScore).toBe(100);
+    expect(calculateIssueScore({
+      type: 'kneeHyperextension',
+      severity: 'normal',
+      angle: 185,
+      threshold: 165,
+      label: '膝超伸正常',
+      view: 'side',
+    }).gaussianScore).toBeCloseTo(90, 5);
+    const abnormalScore = calculateIssueScore({
+      type: 'kneeHyperextension',
+      severity: 'mild',
+      angle: 190,
+      threshold: 165,
+      label: '膝超伸轻度异常',
+      view: 'side',
+    }).gaussianScore;
+    expect(abnormalScore).toBeGreaterThan(75);
+    expect(abnormalScore).toBeLessThan(90);
   });
 });
 
@@ -187,16 +275,27 @@ describe('findPrimaryIssue', () => {
 });
 
 describe('calculatePostureScore', () => {
-  it('should return 100 for all normal issues', () => {
+  it('should return 100 when all detected issues are at their ideal centers', () => {
     const issues: PostureIssue[] = [
       { type: 'forwardHead', severity: 'normal', angle: 55, threshold: 50, label: '头前伸正常', view: 'front' },
-      { type: 'roundedShoulder', severity: 'normal', angle: 15, threshold: 20, label: '圆肩正常', view: 'side' },
-      { type: 'shoulderImbalance', severity: 'normal', angle: 1, threshold: 2, label: '高低肩正常', view: 'front' },
+      { type: 'roundedShoulder', severity: 'normal', angle: 0, threshold: 20, label: '圆肩正常', view: 'side' },
+      { type: 'shoulderImbalance', severity: 'normal', angle: 0, threshold: 2, label: '高低肩正常', view: 'front' },
     ];
 
     const score = calculatePostureScore(issues);
 
     expect(score).toBe(100);
+  });
+
+  it('keeps normal-boundary issues near 90 instead of full marks', () => {
+    const issues: PostureIssue[] = [
+      { type: 'roundedShoulder', severity: 'normal', angle: 20, threshold: 20, label: '圆肩正常', view: 'side' },
+      { type: 'shoulderImbalance', severity: 'normal', angle: 2, threshold: 2, label: '高低肩正常', view: 'front' },
+    ];
+
+    const score = calculatePostureScore(issues);
+
+    expect(score).toBeCloseTo(90, 5);
   });
 
   it('should deduct points for mild issues', () => {
@@ -207,7 +306,7 @@ describe('calculatePostureScore', () => {
 
     const score = calculatePostureScore(issues);
 
-    expect(score).toBe(85);
+    expect(score).toBeGreaterThan(90);
   });
 
   it('should deduct more points for severe issues', () => {
@@ -218,7 +317,8 @@ describe('calculatePostureScore', () => {
 
     const score = calculatePostureScore(issues);
 
-    expect(score).toBe(60);
+    expect(score).toBeGreaterThan(50);
+    expect(score).toBeLessThan(70);
   });
 
   it('should not return negative scores', () => {
@@ -231,5 +331,36 @@ describe('calculatePostureScore', () => {
     const score = calculatePostureScore(issues);
 
     expect(score).toBeGreaterThanOrEqual(0);
+  });
+
+  it('does not deduct or average undetected issues', () => {
+    const issues: PostureIssue[] = [
+      { type: 'forwardHead', severity: 'undetected', angle: 0, threshold: 0, label: '头前伸 — 未检测到足够的关键点', view: 'side' },
+      { type: 'roundedShoulder', severity: 'normal', angle: 0, threshold: 20, label: '圆肩倾向正常', view: 'side' },
+    ];
+
+    expect(calculatePostureScore(issues)).toBe(100);
+    expect(calculatePostureScoreWithNormalization(issues).finalScore).toBe(100);
+  });
+
+  it('averages center-perfect normal issues with a mild abnormal issue', () => {
+    const issues: PostureIssue[] = [
+      { type: 'shoulderImbalance', severity: 'normal', angle: 0, threshold: 5, label: '高低肩正常', view: 'front' },
+      { type: 'pelvicTilt', severity: 'normal', angle: 0, threshold: 5, label: '骨盆侧倾正常', view: 'front' },
+      { type: 'headOffset', severity: 'normal', angle: 0, threshold: 5, label: '头部偏移正常', view: 'front' },
+      { type: 'kneeHyperextension', severity: 'mild', angle: 190, threshold: 165, label: '膝超伸轻度异常', view: 'side' },
+    ];
+
+    const score = calculatePostureScoreWithNormalization(issues).finalScore;
+
+    expect(score).toBeGreaterThan(94);
+    expect(calculatePostureScore(issues)).toBe(score);
+  });
+});
+
+describe('issue display labels', () => {
+  it('uses risk-oriented wording for side-view shoulder and back findings', () => {
+    expect(ISSUE_LABELS.roundedShoulder).toBe('圆肩倾向');
+    expect(ISSUE_LABELS.hunchback).toBe('驼背风险');
   });
 });
