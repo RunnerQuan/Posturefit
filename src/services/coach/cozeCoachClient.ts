@@ -58,7 +58,6 @@ type CozeClientOptions = {
   endpoint: string;
   projectId?: string;
   token?: string;
-  sessionId?: string;
   fetcher?: typeof fetch;
 };
 
@@ -243,14 +242,12 @@ export class CozeCoachClient implements CoachClient {
   private readonly endpoint: string;
   private readonly projectId?: string;
   private readonly token?: string;
-  private readonly sessionId?: string;
   private readonly fetcher: typeof fetch;
 
   constructor(options: CozeClientOptions = getDefaultOptions()) {
     this.endpoint = options.endpoint;
     this.projectId = options.projectId;
     this.token = options.token;
-    this.sessionId = options.sessionId;
     // bind(window) 防止 "Illegal invocation"：全局 fetch 脱离 window 上下文后 this 丢失
     this.fetcher = options.fetcher ?? fetch.bind(window);
   }
