@@ -261,19 +261,6 @@ function AppShell() {
   }, [currentSession, location.pathname, navigateToStep]);
 
   useEffect(() => {
-    if (currentStep !== 'capture' || !currentSession || isCaptureDraftSession(currentSession)) {
-      return;
-    }
-
-    setAppState(previous => ({ ...previous, currentSessionId: null }));
-    setCurrentCaptureView(null);
-    setError(null);
-  }, [currentSession, currentStep]);
-
-  useEffect(() => {
-    if (currentStep === 'capture' && currentSession && !isCaptureDraftSession(currentSession)) {
-      return;
-    }
     if (currentSession && canEnterStep(currentSession, currentStep) && currentSession.step !== currentStep) {
       persistSession(updateSession(currentSession, { step: currentStep }));
     }
@@ -282,6 +269,13 @@ function AppShell() {
   const moveToStep = useCallback(
     (step: PostureSessionStep) => {
       if (!canEnterStep(currentSession, step)) {
+        return;
+      }
+      if (step === 'capture' && currentSession && !isCaptureDraftSession(currentSession)) {
+        setAppState(previous => ({ ...previous, currentSessionId: null }));
+        setCurrentCaptureView(null);
+        setError(null);
+        navigateToStep('capture');
         return;
       }
       if (currentSession) {

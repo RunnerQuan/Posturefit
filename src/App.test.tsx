@@ -248,6 +248,81 @@ describe('App frontend B flow', () => {
     expect(oldSession.profile.userGoal).toBe('改善圆肩');
   });
 
+  it('does not clear the selected history session when opening an incomplete record from chat', async () => {
+    const now = new Date().toISOString();
+    localStorage.setItem('posturefit.appState.v1', JSON.stringify({
+      currentSessionId: 'chat-session',
+      schemaVersion: 2,
+      sessions: [
+        {
+          id: 'chat-session',
+          createdAt: now,
+          updatedAt: now,
+          step: 'chat',
+          sourceType: 'upload',
+          captureMode: 'fullBody',
+          viewSelection: 'side',
+          photos: [
+            { id: 'chat-photo', view: 'side', imageUrl: 'data:image/chat', capturedAt: now },
+          ],
+          analysis: {
+            keypoints: [],
+            metrics: {
+              forwardHeadAngle: 6,
+              roundedShoulderAngle: 22,
+              shoulderImbalanceAngle: 0,
+              pelvicTiltAngle: 0,
+              anteriorTiltAngle: 25,
+              kneeValgusAngle: 0,
+              headOffsetAngle: 0,
+              centerOfGravityShiftAngle: 0,
+              hunchbackAngle: 0,
+              kneeHyperextensionAngle: 0,
+              trunkLeanAngle: 0,
+            },
+            issues: [],
+            primaryIssue: null,
+            score: 80,
+            analyzedAt: now,
+            view: 'side',
+          },
+          profile: {
+            coachStyle: 'strict',
+            coachGender: 'female',
+            userGoal: '改善圆肩',
+            bodyState: 'normal',
+          },
+          chatMessages: [
+            { id: 'm1', role: 'assistant', content: '测试消息', createdAt: now, source: 'mock' },
+          ],
+        },
+        {
+          id: 'pending-session',
+          createdAt: now,
+          updatedAt: now,
+          step: 'capture',
+          sourceType: 'upload',
+          captureMode: 'fullBody',
+          viewSelection: 'side',
+          photos: [],
+          chatMessages: [],
+        },
+      ],
+    }));
+    window.history.pushState(null, '', '/chat');
+
+    render(<App />);
+
+    const pendingButton = (await screen.findAllByRole('button', { name: /待分析记录/ }))[1];
+    fireEvent.click(pendingButton);
+
+    expect(await screen.findByRole('button', { name: '上传正面样例' })).toBeInTheDocument();
+
+    const stored = JSON.parse(localStorage.getItem('posturefit.appState.v1') ?? '{}');
+    expect(stored.currentSessionId).toBe('pending-session');
+    expect(stored.sessions).toHaveLength(2);
+  });
+
   it('shows mobile chat entry points and opens summary sheet on small screens', async () => {
     const now = new Date().toISOString();
     Object.defineProperty(navigator, 'maxTouchPoints', {
