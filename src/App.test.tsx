@@ -346,6 +346,7 @@ describe('App frontend B flow', () => {
 
   it('opens complete history records from chat on the chat page even when the saved step is analysis', async () => {
     const now = new Date().toISOString();
+    const historicalUpdatedAt = '2026-05-24T08:00:00.000Z';
     localStorage.setItem('posturefit.appState.v1', JSON.stringify({
       currentSessionId: 'active-session',
       schemaVersion: 2,
@@ -395,7 +396,7 @@ describe('App frontend B flow', () => {
         {
           id: 'history-session',
           createdAt: now,
-          updatedAt: now,
+          updatedAt: historicalUpdatedAt,
           step: 'analysis',
           sourceType: 'upload',
           captureMode: 'fullBody',
@@ -447,6 +448,10 @@ describe('App frontend B flow', () => {
     await screen.findByText('历史聊天内容');
     expect(window.location.pathname).toBe('/chat');
     expect(screen.queryByText('分析结果')).not.toBeInTheDocument();
+
+    const stored = JSON.parse(localStorage.getItem('posturefit.appState.v1') ?? '{}');
+    const selectedHistory = stored.sessions.find((item: { id: string }) => item.id === 'history-session');
+    expect(selectedHistory.updatedAt).toBe(historicalUpdatedAt);
   });
 
   it('shows mobile chat entry points and opens summary sheet on small screens', async () => {

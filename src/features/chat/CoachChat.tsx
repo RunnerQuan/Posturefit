@@ -75,12 +75,33 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
     autoScrollEnabledRef.current = enabled;
   };
 
+  const isPageNearBottom = () => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+    const pageHeight = document.documentElement.scrollHeight || document.body.scrollHeight || window.innerHeight;
+    return window.scrollY + window.innerHeight >= pageHeight - 80;
+  };
+
+  const syncScrollControls = (container: HTMLDivElement | null = scrollContainerRef.current) => {
+    const containerAwayFromTop = container ? container.scrollTop > 160 : false;
+    const pageAwayFromTop = typeof window !== 'undefined' ? window.scrollY > 160 : false;
+    const containerNearBottom = container
+      ? container.scrollHeight - container.clientHeight - container.scrollTop <= 80
+      : true;
+    const pageNearBottom = isPageNearBottom();
+
+    setAutoScrollEnabled(containerNearBottom && pageNearBottom);
+    setShowScrollToBottom(!containerNearBottom || !pageNearBottom);
+    setShowScrollToTop(containerAwayFromTop || pageAwayFromTop);
+  };
+
   const updateScrollState = (container: HTMLDivElement) => {
     const distanceFromBottom = container.scrollHeight - container.clientHeight - container.scrollTop;
     const isNearBottom = distanceFromBottom <= 80;
     setAutoScrollEnabled(isNearBottom);
     setShowScrollToBottom(!isNearBottom);
-    setShowScrollToTop(container.scrollTop > 160);
+    setShowScrollToTop(container.scrollTop > 160 || (typeof window !== 'undefined' && window.scrollY > 160));
   };
 
   const pauseAutoScrollForUserScroll = () => {
@@ -99,12 +120,34 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
     container.scrollTop = top;
   };
 
+  const scrollPageTo = (top: number, behavior: ScrollBehavior = 'auto') => {
+    if (typeof window === 'undefined' || typeof window.scrollTo !== 'function') {
+      return;
+    }
+    const maybeMockedScrollTo = window.scrollTo as typeof window.scrollTo & {
+      _isMockFunction?: boolean;
+      mock?: unknown;
+    };
+    const isJsdomScrollTo = navigator.userAgent.includes('jsdom')
+      && !maybeMockedScrollTo._isMockFunction
+      && !maybeMockedScrollTo.mock;
+    if (isJsdomScrollTo) {
+      return;
+    }
+    try {
+      window.scrollTo({ top, behavior });
+    } catch {
+      // Some test/webview environments expose scrollTo but do not implement it.
+    }
+  };
+
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     const container = scrollContainerRef.current;
     if (!container) {
       return;
     }
     setContainerScrollTop(container, container.scrollHeight, behavior);
+    scrollPageTo(document.documentElement.scrollHeight, behavior);
     setAutoScrollEnabled(true);
     setShowScrollToBottom(false);
   };
@@ -115,6 +158,7 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
       return;
     }
     setContainerScrollTop(container, 0, 'smooth');
+    scrollPageTo(0, 'smooth');
     setAutoScrollEnabled(false);
     setShowScrollToTop(false);
     setShowScrollToBottom(true);
@@ -135,6 +179,9 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
       return;
     }
     setContainerScrollTop(container, container.scrollHeight, isResponding ? 'auto' : 'smooth');
+    if (isResponding && isPageNearBottom()) {
+      scrollPageTo(document.documentElement.scrollHeight);
+    }
     setShowScrollToBottom(false);
   }, [messages, isResponding]);
 
@@ -144,8 +191,20 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
       return;
     }
     container.scrollTop = container.scrollHeight;
-    updateScrollState(container);
+    syncScrollControls(container);
   }, []);
+
+  useEffect(() => {
+    const handleWindowScroll = () => {
+      if (isResponding && !isPageNearBottom()) {
+        setAutoScrollEnabled(false);
+      }
+      syncScrollControls();
+    };
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+    handleWindowScroll();
+    return () => window.removeEventListener('scroll', handleWindowScroll);
+  }, [isResponding]);
 
   return (
     <section

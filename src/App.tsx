@@ -262,7 +262,7 @@ function AppShell() {
 
   useEffect(() => {
     if (currentSession && canEnterStep(currentSession, currentStep) && currentSession.step !== currentStep) {
-      persistSession(updateSession(currentSession, { step: currentStep }));
+      persistSession(updateSession(currentSession, { step: currentStep }, { preserveUpdatedAt: true }));
     }
   }, [currentSession, currentStep, persistSession]);
 
@@ -279,7 +279,7 @@ function AppShell() {
         return;
       }
       if (currentSession) {
-        persistSession(updateSession(currentSession, { step }));
+        persistSession(updateSession(currentSession, { step }, { preserveUpdatedAt: true }));
       }
       navigateToStep(step);
     },
@@ -658,7 +658,9 @@ function AppShell() {
         ...previous,
         currentSessionId: sessionId,
         sessions: previous.sessions.map(item => (
-          item.id === sessionId && item.step !== nextStep ? updateSession(item, { step: nextStep }) : item
+          item.id === sessionId && item.step !== nextStep
+            ? updateSession(item, { step: nextStep }, { preserveUpdatedAt: true })
+            : item
         )),
       }));
       setCaptureMode(session.captureMode);

@@ -62,10 +62,18 @@ export function createSession(sourceType: CaptureSourceType, captureMode: Captur
   };
 }
 
-export function updateSession(session: PostureSession, updates: Partial<PostureSession>): PostureSession {
+type UpdateSessionOptions = {
+  preserveUpdatedAt?: boolean;
+};
+
+export function updateSession(
+  session: PostureSession,
+  updates: Partial<PostureSession>,
+  options: UpdateSessionOptions = {}
+): PostureSession {
   return {
     ...session,
     ...updates,
-    updatedAt: getCurrentISOString(),
+    updatedAt: options.preserveUpdatedAt ? session.updatedAt : getCurrentISOString(),
   };
 }
