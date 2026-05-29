@@ -325,8 +325,8 @@ export class CozeCoachClient implements CoachClient {
     }, request.sessionId, onDelta);
   }
 
-  private createRequestInit(payload: CozePromptPayload, sessionId?: string): RequestInit {
-    const resolvedSessionId = sessionId ?? this.sessionId ?? generateId();
+  private createRequestInit(payload: CozePromptPayload, _sessionId?: string): RequestInit {
+    const resolvedSessionId = generateId();
 
     if (!this.token || !this.projectId) {
       return {
