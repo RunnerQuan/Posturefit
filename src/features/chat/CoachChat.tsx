@@ -212,29 +212,16 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
     <section
       className={`relative mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
     >
-      <div
-        className="fixed bottom-[calc(9.5rem+env(safe-area-inset-bottom))] right-3 z-50 flex flex-col gap-1.5 rounded-full border border-white/70 bg-white/45 p-1 shadow-soft backdrop-blur-xl md:hidden"
-        style={{
-          right: 'max(0.75rem, env(safe-area-inset-right))',
-        }}
-      >
+      {showScrollToBottom && (
         <button
           type="button"
           onClick={scrollToTop}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/85 bg-white/92 text-mist-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300"
+          className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-1/2 z-50 inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center rounded-full border border-white/85 bg-white/92 text-mist-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300 md:hidden"
           aria-label="移动端回到顶部"
         >
           <ArrowUp className="h-5 w-5" />
         </button>
-        <button
-          type="button"
-          onClick={() => scrollToBottom('smooth')}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/85 bg-white/92 text-blush-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-300"
-          aria-label="移动端查看最新回复"
-        >
-          <ArrowDown className="h-5 w-5" />
-        </button>
-      </div>
+      )}
 
       <div
         ref={scrollContainerRef}

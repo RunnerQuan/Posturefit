@@ -77,7 +77,7 @@ describe('CoachChat', () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
   });
 
-  it('always renders mobile quick scroll arrows', () => {
+  it('shows a mobile bottom-centered top arrow when away from the bottom', () => {
     const scrollTo = vi.fn();
     render(
       <CoachChat
@@ -93,19 +93,16 @@ describe('CoachChat', () => {
 
     const scroller = screen.getByText('第一条消息').closest('[aria-live="polite"]') as HTMLDivElement;
     mockScrollerMetrics(scroller, scrollTo);
+    fireEvent.scroll(scroller);
     const mobileTopButton = screen.getByRole('button', { name: '移动端回到顶部' });
-    const mobileControls = mobileTopButton.parentElement;
 
-    expect(mobileControls).toHaveClass('fixed');
-    expect(mobileControls).toHaveClass('bottom-[calc(9.5rem+env(safe-area-inset-bottom))]');
-    expect(mobileControls).toHaveStyle({ right: 'max(0.75rem, env(safe-area-inset-right))' });
+    expect(mobileTopButton).toHaveClass('fixed');
+    expect(mobileTopButton).toHaveClass('left-1/2');
+    expect(mobileTopButton).toHaveClass('bottom-[calc(1.25rem+env(safe-area-inset-bottom))]');
 
     fireEvent.click(mobileTopButton);
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
-
-    scrollTo.mockClear();
-    fireEvent.click(screen.getByRole('button', { name: '移动端查看最新回复' }));
-    expect(scrollTo).toHaveBeenCalledWith({ top: 1400, behavior: 'smooth' });
+    expect(screen.queryByRole('button', { name: '移动端查看最新回复' })).not.toBeInTheDocument();
   });
 
   it('shows a top button when the mobile page scrolls down', () => {
