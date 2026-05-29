@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, ExternalLink, Flame, RefreshCw, SendHorizontal, Timer } from 'lucide-react';
+import { ArrowDown, ArrowUp, CheckCircle2, ExternalLink, Flame, RefreshCw, SendHorizontal, Timer } from 'lucide-react';
 import { formatDuration } from '../../lib/time';
 import coachAvatar from '../../../assets/coach_profile_photo.png';
 import userAvatar from '../../../assets/user_profile_photo.png';
@@ -67,7 +67,58 @@ function ExerciseCards({ exercises }: { exercises: Exercise[] }) {
 export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestNewPlan, className = '' }: CoachChatProps) {
   const [feedbackText, setFeedbackText] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const autoScrollEnabledRef = useRef(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+
+  const setAutoScrollEnabled = (enabled: boolean) => {
+    autoScrollEnabledRef.current = enabled;
+  };
+
+  const updateScrollState = (container: HTMLDivElement) => {
+    const distanceFromBottom = container.scrollHeight - container.clientHeight - container.scrollTop;
+    const isNearBottom = distanceFromBottom <= 80;
+    setAutoScrollEnabled(isNearBottom);
+    setShowScrollToBottom(!isNearBottom);
+    setShowScrollToTop(container.scrollTop > 160);
+  };
+
+  const pauseAutoScrollForUserScroll = () => {
+    if (!isResponding) {
+      return;
+    }
+    setAutoScrollEnabled(false);
+    setShowScrollToBottom(true);
+  };
+
+  const setContainerScrollTop = (container: HTMLDivElement, top: number, behavior: ScrollBehavior = 'auto') => {
+    if (typeof container.scrollTo === 'function') {
+      container.scrollTo({ top, behavior });
+      return;
+    }
+    container.scrollTop = top;
+  };
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+    setContainerScrollTop(container, container.scrollHeight, behavior);
+    setAutoScrollEnabled(true);
+    setShowScrollToBottom(false);
+  };
+
+  const scrollToTop = () => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+    setContainerScrollTop(container, 0, 'smooth');
+    setAutoScrollEnabled(false);
+    setShowScrollToTop(false);
+    setShowScrollToBottom(true);
+  };
 
   const submitFeedback = (feedback: CheckInFeedback, text = '') => {
     const normalized = text.trim();
@@ -76,17 +127,35 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
   };
 
   useEffect(() => {
-    if (typeof bottomRef.current?.scrollIntoView === 'function') {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (!autoScrollEnabledRef.current) {
+      return;
     }
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+    setContainerScrollTop(container, container.scrollHeight, isResponding ? 'auto' : 'smooth');
+    setShowScrollToBottom(false);
   }, [messages, isResponding]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+    container.scrollTop = container.scrollHeight;
+    updateScrollState(container);
+  }, []);
 
   return (
     <section
-      className={`mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
+      className={`relative mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
     >
       <div
         ref={scrollContainerRef}
+        onScroll={event => updateScrollState(event.currentTarget)}
+        onWheel={pauseAutoScrollForUserScroll}
+        onTouchMove={pauseAutoScrollForUserScroll}
         className="min-h-0 flex-1 overflow-y-auto scroll-smooth border border-white/40 bg-white/70 px-3 py-4 backdrop-blur-sm custom-scrollbar sm:px-4 lg:px-5 lg:py-5"
         aria-live="polite"
       >
@@ -139,8 +208,31 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
             </div>
           );
         })}
-        <div ref={bottomRef} />
       </div>
+
+      {showScrollToTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="absolute right-4 top-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/92 px-3.5 py-2 text-xs font-medium text-mist-700 shadow-soft backdrop-blur-xl transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300 sm:right-6 sm:px-4 sm:text-sm"
+          aria-label="回到顶部"
+        >
+          <ArrowUp className="h-4 w-4" />
+          回到顶部
+        </button>
+      )}
+
+      {showScrollToBottom && (
+        <button
+          type="button"
+          onClick={() => scrollToBottom('smooth')}
+          className="absolute bottom-[18rem] right-5 z-30 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/92 px-4 py-2 text-sm font-medium text-blush-700 shadow-soft backdrop-blur-xl transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-300 md:bottom-28 md:right-6"
+          aria-label="回到底部查看最新回复"
+        >
+          <ArrowDown className="h-4 w-4" />
+          查看最新回复
+        </button>
+      )}
 
       <form
         className="sticky bottom-0 z-20 rounded-b-[32px] border-t border-white/30 bg-white/90 backdrop-blur-xl px-3 py-3 sm:px-4 lg:px-5 lg:py-4"
