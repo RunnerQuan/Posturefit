@@ -344,14 +344,50 @@ function getSideViewRequirements(mode: CaptureMode): { requiredParts: SideBodyPa
   const messages: Record<CaptureMode, string> = {
     closeUp: '请上传包含同侧耳朵和肩部的侧面照片',
     halfBody: '请上传包含同侧肩部和髋部的侧面照片',
-    sitting: '请上传包含同侧肩部和髋部的侧面照片',
-    fullBody: '请上传包含同侧肩部和髋部的侧面照片',
+    sitting: '请上传包含同侧肩部、髋部和膝盖的侧面照片',
+    fullBody: '请上传包含同侧肩部、髋部、膝盖和脚踝的侧面照片',
   };
 
   if (mode === 'closeUp') {
     return { requiredParts: ['ear', 'shoulder'], message: messages[mode] };
   }
+  if (mode === 'sitting') {
+    return { requiredParts: ['shoulder', 'hip', 'knee'], message: messages[mode] };
+  }
+  if (mode === 'fullBody') {
+    return { requiredParts: ['shoulder', 'hip', 'knee', 'ankle'], message: messages[mode] };
+  }
   return { requiredParts: ['shoulder', 'hip'], message: messages[mode] };
+}
+
+function getSidePartLandmark(side: PoseSide, part: SideBodyPart): BlazePoseLandmark {
+  const prefix = side;
+  switch (part) {
+    case 'ear':
+      return `${prefix}_ear` as BlazePoseLandmark;
+    case 'shoulder':
+      return `${prefix}_shoulder` as BlazePoseLandmark;
+    case 'hip':
+      return `${prefix}_hip` as BlazePoseLandmark;
+    case 'knee':
+      return `${prefix}_knee` as BlazePoseLandmark;
+    case 'ankle':
+      return `${prefix}_ankle` as BlazePoseLandmark;
+    case 'heel':
+      return `${prefix}_heel` as BlazePoseLandmark;
+    case 'footIndex':
+      return `${prefix}_foot_index` as BlazePoseLandmark;
+  }
+}
+
+function getMissingSideKeypoints(
+  keypoints: PoseKeypoint33[],
+  visibleSide: PoseSide,
+  requiredParts: SideBodyPart[]
+): BlazePoseLandmark[] {
+  return requiredParts
+    .map(part => getSidePartLandmark(visibleSide, part))
+    .filter(landmark => !isVisible(getBlazePoseKeypoint(keypoints, landmark)));
 }
 
 const MODE_REQUIREMENTS: Record<CaptureMode, { required: BlazePoseLandmark[]; optional: BlazePoseLandmark[]; message: string }> = {
@@ -496,8 +532,26 @@ export function validateKeypointsForMode(
 
   if (view === 'side') {
     const sideRequirements = getSideViewRequirements(mode);
-    const visibleSide = selectVisibleSide(keypoints, sideRequirements.requiredParts);
+    const anchorSide = selectVisibleSide(keypoints, ['shoulder', 'hip']);
 
+    if (!anchorSide) {
+      return {
+        isValid: false,
+        message: sideRequirements.message,
+      };
+    }
+
+    const missingKeypoints = getMissingSideKeypoints(keypoints, anchorSide.side, sideRequirements.requiredParts);
+    if (missingKeypoints.length > 0) {
+      return {
+        isValid: false,
+        message: sideRequirements.message,
+        missingKeypoints,
+        visibleSide: anchorSide.side,
+      };
+    }
+
+    const visibleSide = selectVisibleSide(keypoints, sideRequirements.requiredParts);
     if (!visibleSide) {
       return {
         isValid: false,

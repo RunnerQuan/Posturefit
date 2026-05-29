@@ -95,14 +95,14 @@ describe('CoachChat', () => {
     mockScrollerMetrics(scroller, scrollTo);
     fireEvent.scroll(scroller);
     const mobileTopButton = screen.getByRole('button', { name: '移动端回到顶部' });
+    const mobileControlBar = mobileTopButton.parentElement;
 
-    expect(mobileTopButton).toHaveClass('fixed');
-    expect(mobileTopButton).toHaveClass('left-1/2');
-    expect(mobileTopButton).toHaveClass('bottom-[calc(1.25rem+env(safe-area-inset-bottom))]');
+    expect(mobileControlBar).toHaveClass('fixed');
+    expect(mobileControlBar).toHaveClass('bottom-[calc(9.5rem+env(safe-area-inset-bottom))]');
 
     fireEvent.click(mobileTopButton);
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
-    expect(screen.queryByRole('button', { name: '移动端查看最新回复' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '移动端查看最新回复' })).toBeInTheDocument();
   });
 
   it('shows a top button when the mobile page scrolls down', () => {

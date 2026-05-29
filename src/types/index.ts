@@ -158,6 +158,24 @@ export type PostureAnalysisResult = {
   view: PoseView;  // 分析结果对应的视角
 };
 
+export type PhotoAnalysisStatus = 'pending' | 'analyzing' | 'succeeded' | 'failed';
+
+export type PhotoAnalysisErrorCode =
+  | 'no_pose'
+  | 'low_keypoints'
+  | 'quality_gate'
+  | 'image_load'
+  | 'model_error'
+  | 'timeout'
+  | 'unknown';
+
+export type PhotoAnalysisError = {
+  code: PhotoAnalysisErrorCode;
+  message: string;
+  missingKeypoints?: string[];
+  failedAt: string;
+};
+
 // 合并分析结果（用于双视角模式）
 export type CombinedAnalysisResult = {
   allIssues: PostureIssue[];           // 所有问题（含来源标注，按严重程度排序）
@@ -176,6 +194,8 @@ export type CapturedPhoto = {
   view: PoseView;
   imageUrl: string;
   analysis?: PostureAnalysisResult;
+  analysisStatus?: PhotoAnalysisStatus;
+  analysisError?: PhotoAnalysisError;
   capturedAt: string;
 };
 
