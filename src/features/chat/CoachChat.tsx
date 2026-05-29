@@ -210,38 +210,10 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
   }, [isResponding]);
 
   return (
+    <>
     <section
       className={`relative mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
     >
-      {showScrollToBottom && (
-        <div
-          className="fixed top-[calc(0.5rem+env(safe-area-inset-top))] z-50 md:hidden"
-          style={{ right: 'max(0.75rem, env(safe-area-inset-right))' }}
-        >
-          <button
-            type="button"
-            onClick={() => scrollToBottom('smooth')}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-white/92 text-blush-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-300"
-            aria-label="移动端查看最新回复"
-          >
-            <ArrowDown className="h-5 w-5" />
-          </button>
-        </div>
-      )}
-      <div
-        className="fixed bottom-[calc(9.5rem+env(safe-area-inset-bottom))] z-50 md:hidden"
-        style={{ right: 'max(0.75rem, env(safe-area-inset-right))' }}
-      >
-        <button
-          type="button"
-          onClick={scrollToTop}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-white/92 text-mist-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300"
-          aria-label="移动端回到顶部"
-        >
-          <ArrowUp className="h-5 w-5" />
-        </button>
-      </div>
-
       <div
         ref={scrollContainerRef}
         onScroll={event => updateScrollState(event.currentTarget)}
@@ -402,5 +374,34 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
         </div>
       </form>
     </section>
+      {showScrollToBottom && (
+        <div
+          className="fixed top-[calc(0.5rem+env(safe-area-inset-top))] z-50 md:hidden"
+          style={{ right: 'max(0.75rem, env(safe-area-inset-right))' }}
+        >
+          <button
+            type="button"
+            onClick={() => scrollToBottom('smooth')}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-white/92 text-mist-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300"
+            aria-label="移动端查看最新回复"
+          >
+            <ArrowDown className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      <div
+        className="fixed bottom-[calc(9.5rem+env(safe-area-inset-bottom))] z-50 md:hidden"
+        style={{ right: 'max(0.75rem, env(safe-area-inset-right))' }}
+      >
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-white/92 text-mist-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300"
+          aria-label="移动端回到顶部"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
+      </div>
+    </>
   );
 }
