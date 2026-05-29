@@ -14,13 +14,18 @@ import { ISSUE_LABELS } from '../../data/exercises';
 describe('classifyPostureIssue', () => {
   describe('forwardHead', () => {
     it('should classify normal forward head angle', () => {
-      // CVA 角度越大越好（正常 >= 50°）
+      // CVA 角度越大越好（正常 >= 48°）
       const result = classifyPostureIssue('forwardHead', 55, DEFAULT_THRESHOLDS);
       expect(result.severity).toBe('normal');
     });
 
+    it('should classify 48 degrees and 49.3 degrees as normal forward head angles', () => {
+      expect(classifyPostureIssue('forwardHead', 49.3, DEFAULT_THRESHOLDS).severity).toBe('normal');
+      expect(classifyPostureIssue('forwardHead', 48, DEFAULT_THRESHOLDS).severity).toBe('normal');
+    });
+
     it('should classify mild forward head angle', () => {
-      const result = classifyPostureIssue('forwardHead', 47, DEFAULT_THRESHOLDS);
+      const result = classifyPostureIssue('forwardHead', 47.9, DEFAULT_THRESHOLDS);
       expect(result.severity).toBe('mild');
     });
 
@@ -186,7 +191,7 @@ describe('calculateIssueScore', () => {
     expect(boundaryScore.gaussianScore).toBeCloseTo(75, 5);
   });
 
-  it('scores forward-head boundaries at 50 and 20 after the normal CVA boundary', () => {
+  it('scores forward-head center as 100, normal boundary near 75, and moderate boundary near 20', () => {
     expect(calculateIssueScore({
       type: 'forwardHead',
       severity: 'normal',
@@ -195,6 +200,14 @@ describe('calculateIssueScore', () => {
       label: '头前伸正常',
       view: 'side',
     }).gaussianScore).toBe(100);
+    expect(calculateIssueScore({
+      type: 'forwardHead',
+      severity: 'normal',
+      angle: 48,
+      threshold: 45,
+      label: '头前伸正常',
+      view: 'side',
+    }).gaussianScore).toBeCloseTo(75, 5);
     const mildScore = calculateIssueScore({
       type: 'forwardHead',
       severity: 'mild',

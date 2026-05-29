@@ -68,7 +68,7 @@ describe('CameraCapture', () => {
     expect(screen.getByText(/不用于膝内扣或膝超伸/)).toBeInTheDocument();
   });
 
-  it('places guidance below the preview area and before capture actions', () => {
+  it('places guidance above the preview area and before capture actions', () => {
     render(
       <CameraCapture
         onCapture={vi.fn()}
@@ -86,9 +86,9 @@ describe('CameraCapture', () => {
     const cameraButtons = screen.getAllByRole('button', { name: '开启摄像头' });
     const primaryAction = cameraButtons[cameraButtons.length - 1];
 
-    expect(preview.compareDocumentPosition(guide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(guide.compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(primaryAction).toBeDefined();
-    expect(guide.compareDocumentPosition(primaryAction as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(preview.compareDocumentPosition(primaryAction as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('keeps a view status row for single-view layouts so the preview does not jump upward', () => {

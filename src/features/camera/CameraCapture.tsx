@@ -417,6 +417,12 @@ export function CameraCapture({
         isAllCapturesDone={isAllCapturesDone}
       />
 
+      <CaptureModeGuidePanel
+        mode={selectedMode}
+        viewSelection={viewSelection}
+        currentCaptureView={currentCaptureView}
+      />
+
       <div data-testid="capture-preview" className="flex-1 bg-gray-900 rounded-2xl overflow-hidden relative">
         {permissionState === 'prompt' && !isActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800">
@@ -491,12 +497,6 @@ export function CameraCapture({
           </div>
         )}
       </div>
-
-      <CaptureModeGuidePanel
-        mode={selectedMode}
-        viewSelection={viewSelection}
-        currentCaptureView={currentCaptureView}
-      />
 
       <div className="mt-4 flex gap-3 justify-center items-center flex-wrap">
         {isActive ? (

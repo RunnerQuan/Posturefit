@@ -64,6 +64,10 @@ function getDirectionMultiplier(orientation: SideOrientation): number | null {
   return null;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 function distanceToSegmentLine(point: Point, lineStart: Point, lineEnd: Point): number {
   return Math.abs(signedDistanceToLine(point, lineStart, lineEnd));
 }
@@ -294,7 +298,23 @@ export function calculateForwardHeadAngle(keypoints: PoseKeypoint33[]): number |
     return null;
   }
 
-  return Math.atan2(Math.abs(shoulder.y - ear.y), Math.abs(ear.x - shoulder.x)) * (180 / Math.PI);
+  const rawCva = Math.atan2(Math.abs(shoulder.y - ear.y), Math.abs(ear.x - shoulder.x)) * (180 / Math.PI);
+  const hip = toPoint(visibleSide.hip);
+  const bodyHeight = hip
+    ? Math.abs(shoulder.y - hip.y)
+    : Math.abs(shoulder.y - ear.y);
+  if (bodyHeight <= 0) {
+    return rawCva;
+  }
+
+  const direction = getDirectionMultiplier(estimateSideOrientation(keypoints, visibleSide));
+  const forwardOffset = direction === null
+    ? Math.abs(ear.x - shoulder.x)
+    : Math.max(0, (ear.x - shoulder.x) * direction);
+  const headForwardRatio = forwardOffset / bodyHeight;
+  const ratioCva = clamp(55 - headForwardRatio * 80, 20, 90);
+
+  return Math.min(rawCva, ratioCva);
 }
 
 /**
