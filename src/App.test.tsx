@@ -207,6 +207,47 @@ describe('App frontend B flow', () => {
     expect(session.analysis.issues.map((issue: { type: string }) => issue.type)).not.toContain('shoulderImbalance');
   });
 
+  it('starts a brand new evaluation when uploading from capture after entering chat', async () => {
+    render(<App />);
+
+    enterCaptureIfNeeded();
+    fireEvent.click(screen.getByRole('button', { name: '只拍侧面' }));
+    fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
+
+    await screen.findByText('分析结果');
+    fireEvent.click(screen.getByRole('button', { name: /继续选择教练/ }));
+    await screen.findByText('定制你的 AI 运动教练');
+    fireEvent.change(screen.getByPlaceholderText('例如：改善圆肩、缓解久坐酸痛'), {
+      target: { value: '改善圆肩' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '进入 AI 陪练' }));
+    await screen.findByText('历史评估');
+
+    const storedBefore = JSON.parse(localStorage.getItem('posturefit.appState.v1') ?? '{}');
+    const previousSessionId = storedBefore.currentSessionId;
+    const previousSessionCount = storedBefore.sessions.length;
+
+    fireEvent.click(screen.getByRole('button', { name: '拍照' }));
+    fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
+
+    await screen.findByText('分析结果');
+
+    const storedAfter = JSON.parse(localStorage.getItem('posturefit.appState.v1') ?? '{}');
+    expect(storedAfter.currentSessionId).not.toBe(previousSessionId);
+    expect(storedAfter.sessions).toHaveLength(previousSessionCount + 1);
+
+    const newSession = storedAfter.sessions.find((item: { id: string }) => item.id === storedAfter.currentSessionId);
+    const oldSession = storedAfter.sessions.find((item: { id: string }) => item.id === previousSessionId);
+
+    expect(newSession.profile).toBeUndefined();
+    expect(newSession.plan).toBeUndefined();
+    expect(newSession.chatMessages).toEqual([]);
+    expect(newSession.photos).toHaveLength(1);
+    expect(newSession.analysis.view).toBe('side');
+    expect(oldSession.chatMessages.length).toBeGreaterThan(0);
+    expect(oldSession.profile.userGoal).toBe('改善圆肩');
+  });
+
   it('shows mobile chat entry points and opens summary sheet on small screens', async () => {
     const now = new Date().toISOString();
     Object.defineProperty(navigator, 'maxTouchPoints', {

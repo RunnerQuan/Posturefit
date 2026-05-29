@@ -261,6 +261,19 @@ function AppShell() {
   }, [currentSession, location.pathname, navigateToStep]);
 
   useEffect(() => {
+    if (currentStep !== 'capture' || !currentSession || isCaptureDraftSession(currentSession)) {
+      return;
+    }
+
+    setAppState(previous => ({ ...previous, currentSessionId: null }));
+    setCurrentCaptureView(null);
+    setError(null);
+  }, [currentSession, currentStep]);
+
+  useEffect(() => {
+    if (currentStep === 'capture' && currentSession && !isCaptureDraftSession(currentSession)) {
+      return;
+    }
     if (currentSession && canEnterStep(currentSession, currentStep) && currentSession.step !== currentStep) {
       persistSession(updateSession(currentSession, { step: currentStep }));
     }
