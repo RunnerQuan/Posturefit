@@ -35,6 +35,18 @@ function gaussianScore(angle: number, center: number, sigma: number): number {
   return 100 * Math.exp(exponent);
 }
 
+function sigmaForBoundaryScore(distanceAtBoundary: number, scoreAtBoundary: number): number {
+  if (distanceAtBoundary <= 0) {
+    return 1;
+  }
+  return distanceAtBoundary / Math.sqrt(-2 * Math.log(scoreAtBoundary / 100));
+}
+
+function gaussianScoreFromBase(deviation: number, sigma: number, baseScore: number): number {
+  const exponent = -(deviation ** 2) / (2 * sigma ** 2);
+  return baseScore * Math.exp(exponent);
+}
+
 // =============================================================================
 // 体态问题分类器
 // 参考: docs/MediaPipe_BlazePose_体态识别替换技术文档.md
@@ -157,6 +169,16 @@ function classifyKneeHyperextensionSeverity(angle: number, thresholds: PostureTh
 
   if (angle >= normalMin && angle <= normalMax) {
     return 'normal';
+  }
+  if (angle > normalMax) {
+    const excess = angle - normalMax;
+    if (excess < 5) {
+      return 'mild';
+    }
+    if (excess < 10) {
+      return 'moderate';
+    }
+    return 'severe';
   }
   if (angle >= mild) {
     return 'mild';
@@ -316,7 +338,7 @@ export function classifyAllPostureIssues(
 
   for (const type of issueTypes) {
     const metricKey = getMetricKey(type);
-    const value = (metrics as Record<string, number | null>)[metricKey];
+    const value = (metrics as Record<string, number | null | undefined>)[metricKey];
 
     if (value === null) {
       // 关键点不可见，无法计算该指标
@@ -381,54 +403,179 @@ export function findPrimaryIssue(issues: PostureIssue[]): PostureIssueType | nul
   return primaryIssue?.type ?? null;
 }
 
-export function calculatePostureScore(issues: PostureIssue[]): number {
-  const severityWeights: Record<PostureSeverity, number> = {
-    normal: 0,
-    mild: 15,
-    moderate: 25,
-    severe: 40,
-    undetected: 0, // 未检测的不扣分
-  };
-
-  let totalDeduction = 0;
-
-  for (const issue of issues) {
-    if (issue.severity !== 'normal') {
-      totalDeduction += severityWeights[issue.severity];
-    }
-  }
-
-  return Math.max(0, 100 - totalDeduction);
-}
-
 // =============================================================================
 // 高斯衰减评分计算
 // =============================================================================
+
+function getIssueView(type: PostureIssueType): PoseView {
+  const frontViewTypes: PostureIssueType[] = [
+    'shoulderImbalance', 'pelvicTilt', 'kneeValgus',
+    'headOffset', 'centerOfGravityShift',
+  ];
+  return frontViewTypes.includes(type) ? 'front' : 'side';
+}
+
+function getNormalBoundaryDistance(type: PostureIssueType, angle: number): number {
+  const thresholds = DEFAULT_THRESHOLDS;
+
+  switch (type) {
+    case 'forwardHead':
+      return Math.max(0, thresholds.forwardHead.normal - angle);
+    case 'kneeHyperextension': {
+      const { normalMin, normalMax } = thresholds.kneeHyperextension;
+      if (angle < normalMin) {
+        return normalMin - angle;
+      }
+      if (angle > normalMax) {
+        return angle - normalMax;
+      }
+      return 0;
+    }
+    case 'roundedShoulder':
+      return Math.max(0, Math.abs(angle) - thresholds.roundedShoulder.normal);
+    case 'shoulderImbalance':
+      return Math.max(0, Math.abs(angle) - thresholds.shoulderImbalance.normal);
+    case 'pelvicTilt':
+      return Math.max(0, Math.abs(angle) - thresholds.pelvicTilt.normal);
+    case 'anteriorPelvicTilt':
+      return Math.max(0, Math.abs(angle) - thresholds.anteriorPelvicTilt.normal);
+    case 'kneeValgus':
+      return Math.max(0, Math.abs(angle) - thresholds.kneeValgus.normal);
+    case 'headOffset':
+      return Math.max(0, Math.abs(angle) - thresholds.headOffset.normal);
+    case 'centerOfGravityShift':
+      return Math.max(0, Math.abs(angle) - thresholds.centerOfGravityShift.normal);
+    case 'hunchback':
+      return Math.max(0, Math.abs(angle) - thresholds.hunchback.normal);
+  }
+}
+
+function getCenterDistanceWithinNormal(type: PostureIssueType, angle: number): number {
+  const params = GAUSSIAN_PARAMS[type];
+
+  switch (type) {
+    case 'forwardHead':
+      return 0;
+    case 'kneeHyperextension':
+      return Math.abs(angle - params.center);
+    default:
+      return Math.abs(angle - params.center);
+  }
+}
+
+function getNormalBoundaryDistanceFromCenter(type: PostureIssueType, angle: number): number {
+  const thresholds = DEFAULT_THRESHOLDS;
+  const center = GAUSSIAN_PARAMS[type].center;
+
+  switch (type) {
+    case 'forwardHead':
+      return 0;
+    case 'kneeHyperextension': {
+      const { normalMin, normalMax } = thresholds.kneeHyperextension;
+      return angle < center ? center - normalMin : normalMax - center;
+    }
+    case 'roundedShoulder':
+      return thresholds.roundedShoulder.normal;
+    case 'shoulderImbalance':
+      return thresholds.shoulderImbalance.normal;
+    case 'pelvicTilt':
+      return thresholds.pelvicTilt.normal;
+    case 'anteriorPelvicTilt':
+      return thresholds.anteriorPelvicTilt.normal;
+    case 'kneeValgus':
+      return thresholds.kneeValgus.normal;
+    case 'headOffset':
+      return thresholds.headOffset.normal;
+    case 'centerOfGravityShift':
+      return thresholds.centerOfGravityShift.normal;
+    case 'hunchback':
+      return thresholds.hunchback.normal;
+  }
+}
+
+function getSevereBoundaryDistance(type: PostureIssueType): number {
+  const thresholds = DEFAULT_THRESHOLDS;
+
+  switch (type) {
+    case 'forwardHead':
+      return thresholds.forwardHead.normal - thresholds.forwardHead.moderate;
+    case 'kneeHyperextension':
+      return thresholds.kneeHyperextension.normalMin - thresholds.kneeHyperextension.moderate;
+    case 'roundedShoulder':
+      return thresholds.roundedShoulder.moderate - thresholds.roundedShoulder.normal;
+    case 'shoulderImbalance':
+      return thresholds.shoulderImbalance.moderate - thresholds.shoulderImbalance.normal;
+    case 'pelvicTilt':
+      return thresholds.pelvicTilt.moderate - thresholds.pelvicTilt.normal;
+    case 'anteriorPelvicTilt':
+      return thresholds.anteriorPelvicTilt.moderate - thresholds.anteriorPelvicTilt.normal;
+    case 'kneeValgus':
+      return thresholds.kneeValgus.moderate - thresholds.kneeValgus.normal;
+    case 'headOffset':
+      return thresholds.headOffset.moderate - thresholds.headOffset.normal;
+    case 'centerOfGravityShift':
+      return thresholds.centerOfGravityShift.moderate - thresholds.centerOfGravityShift.normal;
+    case 'hunchback':
+      return thresholds.hunchback.moderate - thresholds.hunchback.normal;
+  }
+}
+
+function calculateThresholdAwareGaussianScore(type: PostureIssueType, angle: number, severity?: PostureSeverity): { deviation: number; score: number } {
+  if (severity === 'normal') {
+    const deviation = getCenterDistanceWithinNormal(type, angle);
+    const normalBoundaryDistance = getNormalBoundaryDistanceFromCenter(type, angle);
+
+    if (normalBoundaryDistance === 0 || deviation === 0) {
+      return { deviation, score: 100 };
+    }
+
+    const sigma = sigmaForBoundaryScore(normalBoundaryDistance, 90);
+    return {
+      deviation,
+      score: Math.max(90, gaussianScore(deviation, 0, sigma)),
+    };
+  }
+
+  const deviation = getNormalBoundaryDistance(type, angle);
+
+  if (severity === 'undetected') {
+    return { deviation, score: 100 };
+  }
+
+  const severeBoundaryDistance = getSevereBoundaryDistance(type);
+  if (deviation === 0 || severeBoundaryDistance === 0) {
+    return { deviation, score: 90 };
+  }
+
+  const sigma = sigmaForBoundaryScore(severeBoundaryDistance, (55 / 90) * 100);
+  return {
+    deviation,
+    score: gaussianScoreFromBase(deviation, sigma, 90),
+  };
+}
 
 /**
  * 计算单个问题的分数（0-100）
  */
 export function calculateIssueScore(
-  type: PostureIssueType,
-  angle: number
+  issueOrType: PostureIssue | PostureIssueType,
+  angle?: number
 ): PostureIssueScore {
+  const type = typeof issueOrType === 'string' ? issueOrType : issueOrType.type;
+  const rawAngle = typeof issueOrType === 'string' ? (angle ?? 0) : issueOrType.angle;
+  const severity = typeof issueOrType === 'string' ? undefined : issueOrType.severity;
   const params = GAUSSIAN_PARAMS[type];
-  const deviation = Math.abs(angle - params.center);
-  const score = gaussianScore(angle, params.center, params.sigma);
-
-  // 根据视角确定该问题属于哪个视图
-  const frontViewTypes: PostureIssueType[] = [
-    'shoulderImbalance', 'pelvicTilt', 'kneeValgus',
-    'headOffset', 'centerOfGravityShift',
-  ];
-  const view: PoseView = frontViewTypes.includes(type) ? 'front' : 'side';
+  const fallbackDeviation = Math.abs(rawAngle - params.center);
+  const { deviation, score } = typeof issueOrType === 'string'
+    ? { deviation: fallbackDeviation, score: gaussianScore(rawAngle, params.center, params.sigma) }
+    : calculateThresholdAwareGaussianScore(type, rawAngle, severity);
 
   return {
     type,
-    rawAngle: angle,
+    rawAngle,
     deviation,
     gaussianScore: score,
-    view,
+    view: getIssueView(type),
   };
 }
 
@@ -443,7 +590,10 @@ export function calculateNormalizedScores(issues: PostureIssue[]): {
   const sideItems: PostureIssueScore[] = [];
 
   for (const issue of issues) {
-    const itemScore = calculateIssueScore(issue.type, issue.angle);
+    if (issue.severity === 'undetected') {
+      continue;
+    }
+    const itemScore = calculateIssueScore(issue);
     if (itemScore.view === 'front') {
       frontItems.push(itemScore);
     } else {
@@ -504,4 +654,8 @@ export function calculatePostureScoreWithNormalization(
     sideViewScore,
     allScores,
   };
+}
+
+export function calculatePostureScore(issues: PostureIssue[]): number {
+  return calculatePostureScoreWithNormalization(issues).finalScore;
 }

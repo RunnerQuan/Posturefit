@@ -1,5 +1,25 @@
 import type { PoseKeypoint33, BlazePoseLandmark, PoseKeypoint17, KeypointName, CaptureMode, PoseView } from '../../types';
 
+export type PoseSide = 'left' | 'right';
+export type SideOrientation = 'facingLeft' | 'facingRight' | 'unknown';
+export type SideBodyPart = 'ear' | 'shoulder' | 'hip' | 'knee' | 'ankle' | 'heel' | 'footIndex';
+
+export interface VisibleSideKeypoints {
+  side: PoseSide;
+  shoulder: PoseKeypoint33 | null;
+  hip: PoseKeypoint33 | null;
+  knee: PoseKeypoint33 | null;
+  ankle: PoseKeypoint33 | null;
+  ear: PoseKeypoint33 | null;
+  heel: PoseKeypoint33 | null;
+  footIndex: PoseKeypoint33 | null;
+}
+
+export interface PoseQualityResult {
+  isReliable: boolean;
+  message?: string;
+}
+
 // =============================================================================
 // MediaPipe BlazePose 33 点索引映射
 // 参考: docs/MediaPipe_BlazePose_体态识别替换技术文档.md
@@ -120,21 +140,18 @@ export function getBlazePoseKeypoint(keypoints: PoseKeypoint33[], name: BlazePos
   return keypoints.find(k => k.name === name);
 }
 
+function isVisible(keypoint: PoseKeypoint33 | null | undefined, minScore: number = 0.5): keypoint is PoseKeypoint33 {
+  return Boolean(keypoint && keypoint.score >= minScore);
+}
+
 // 获取可见侧的关键点（用于侧面照）
 export function getVisibleSideKeypoint(
   keypoints: PoseKeypoint33[],
-  side: 'left' | 'right'
-): {
-  shoulder: PoseKeypoint33 | null;
-  hip: PoseKeypoint33 | null;
-  knee: PoseKeypoint33 | null;
-  ankle: PoseKeypoint33 | null;
-  ear: PoseKeypoint33 | null;
-  heel: PoseKeypoint33 | null;
-  footIndex: PoseKeypoint33 | null;
-} {
+  side: PoseSide
+): VisibleSideKeypoints {
   const prefix = side === 'left' ? 'left' : 'right';
   return {
+    side,
     shoulder: getBlazePoseKeypoint(keypoints, `${prefix}_shoulder` as BlazePoseLandmark) ?? null,
     hip: getBlazePoseKeypoint(keypoints, `${prefix}_hip` as BlazePoseLandmark) ?? null,
     knee: getBlazePoseKeypoint(keypoints, `${prefix}_knee` as BlazePoseLandmark) ?? null,
@@ -143,6 +160,60 @@ export function getVisibleSideKeypoint(
     heel: getBlazePoseKeypoint(keypoints, `${prefix}_heel` as BlazePoseLandmark) ?? null,
     footIndex: getBlazePoseKeypoint(keypoints, `${prefix}_foot_index` as BlazePoseLandmark) ?? null,
   };
+}
+
+function sidePartToKeypoint(sideKeypoints: VisibleSideKeypoints, part: SideBodyPart): PoseKeypoint33 | null {
+  return sideKeypoints[part];
+}
+
+function scoreVisibleSide(sideKeypoints: VisibleSideKeypoints): number {
+  const parts: SideBodyPart[] = ['ear', 'shoulder', 'hip', 'knee', 'ankle', 'heel', 'footIndex'];
+  return parts.reduce((sum, part) => {
+    const point = sidePartToKeypoint(sideKeypoints, part);
+    return sum + (isVisible(point) ? point.score : 0);
+  }, 0);
+}
+
+export function selectVisibleSide(
+  keypoints: PoseKeypoint33[],
+  requiredParts: SideBodyPart[] = ['shoulder', 'hip']
+): VisibleSideKeypoints | null {
+  const sides = [getVisibleSideKeypoint(keypoints, 'left'), getVisibleSideKeypoint(keypoints, 'right')];
+  const candidates = sides.filter(side =>
+    requiredParts.every(part => isVisible(sidePartToKeypoint(side, part)))
+  );
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return candidates.sort((a, b) => scoreVisibleSide(b) - scoreVisibleSide(a))[0];
+}
+
+export function estimateSideOrientation(
+  keypoints: PoseKeypoint33[],
+  visibleSide: VisibleSideKeypoints
+): SideOrientation {
+  const nose = getBlazePoseKeypoint(keypoints, 'nose');
+  const { ear, shoulder, hip, footIndex, heel } = visibleSide;
+
+  if (isVisible(nose) && isVisible(ear) && Math.abs(nose.x - ear.x) > 4) {
+    return nose.x < ear.x ? 'facingLeft' : 'facingRight';
+  }
+
+  if (isVisible(ear) && isVisible(shoulder) && Math.abs(ear.x - shoulder.x) > 4) {
+    return ear.x < shoulder.x ? 'facingLeft' : 'facingRight';
+  }
+
+  if (isVisible(footIndex) && isVisible(heel) && Math.abs(footIndex.x - heel.x) > 4) {
+    return footIndex.x < heel.x ? 'facingLeft' : 'facingRight';
+  }
+
+  if (isVisible(shoulder) && isVisible(hip) && Math.abs(shoulder.x - hip.x) > 4) {
+    return shoulder.x < hip.x ? 'facingLeft' : 'facingRight';
+  }
+
+  return 'unknown';
 }
 
 // =============================================================================
@@ -269,22 +340,18 @@ export const SKELETON_CONNECTIONS: [KeypointName, KeypointName][] = [
   ['rightKnee', 'rightAnkle'],
 ];
 
-// 侧面视角的 required 关键点：根据 mode 不同，要求不同
-function getSideViewRequirements(mode: CaptureMode) {
-  const base = ['nose', 'left_shoulder', 'right_shoulder'];
-  const withHip = ['left_hip', 'right_hip'];
-
+function getSideViewRequirements(mode: CaptureMode): { requiredParts: SideBodyPart[]; message: string } {
   const messages: Record<CaptureMode, string> = {
-    closeUp: '请上传包含肩颈部位的侧面照片',
-    halfBody: '请上传包含肩部和髋部的侧面照片',
-    sitting: '请上传包含肩部和髋部的侧面照片',
-    fullBody: '请上传包含肩部和髋部的侧面照片',
+    closeUp: '请上传包含同侧耳朵和肩部的侧面照片',
+    halfBody: '请上传包含同侧肩部和髋部的侧面照片',
+    sitting: '请上传包含同侧肩部和髋部的侧面照片',
+    fullBody: '请上传包含同侧肩部和髋部的侧面照片',
   };
 
   if (mode === 'closeUp') {
-    return { required: base as BlazePoseLandmark[], optional: ['left_ear', 'right_ear'] as BlazePoseLandmark[], message: messages[mode] };
+    return { requiredParts: ['ear', 'shoulder'], message: messages[mode] };
   }
-  return { required: [...base, ...withHip] as BlazePoseLandmark[], optional: ['left_ear', 'right_ear'] as BlazePoseLandmark[], message: messages[mode] };
+  return { requiredParts: ['shoulder', 'hip'], message: messages[mode] };
 }
 
 const MODE_REQUIREMENTS: Record<CaptureMode, { required: BlazePoseLandmark[]; optional: BlazePoseLandmark[]; message: string }> = {
@@ -372,6 +439,52 @@ export interface ValidationResult {
   isValid: boolean;
   message: string;
   missingKeypoints?: BlazePoseLandmark[];
+  qualityWarnings?: string[];
+  visibleSide?: PoseSide;
+}
+
+export function validatePoseQuality(
+  keypoints: PoseKeypoint33[],
+  mode: CaptureMode,
+  view?: PoseView
+): PoseQualityResult {
+  if (view !== 'front' || mode !== 'fullBody') {
+    return { isReliable: true };
+  }
+
+  const leftShoulder = getBlazePoseKeypoint(keypoints, 'left_shoulder');
+  const rightShoulder = getBlazePoseKeypoint(keypoints, 'right_shoulder');
+  const leftHip = getBlazePoseKeypoint(keypoints, 'left_hip');
+  const rightHip = getBlazePoseKeypoint(keypoints, 'right_hip');
+  const leftAnkle = getBlazePoseKeypoint(keypoints, 'left_ankle');
+  const rightAnkle = getBlazePoseKeypoint(keypoints, 'right_ankle');
+
+  if (![leftShoulder, rightShoulder, leftHip, rightHip, leftAnkle, rightAnkle].every(point => isVisible(point))) {
+    return { isReliable: true };
+  }
+
+  const shoulderWidth = Math.abs(rightShoulder!.x - leftShoulder!.x);
+  const hipWidth = Math.abs(rightHip!.x - leftHip!.x);
+  const ankleWidth = Math.abs(rightAnkle!.x - leftAnkle!.x);
+  const maxCoordinate = Math.max(...keypoints.map(point => Math.max(Math.abs(point.x), Math.abs(point.y))));
+  const minBodyWidth = maxCoordinate <= 2 ? 0.03 : 8;
+
+  if (shoulderWidth < minBodyWidth || hipWidth < minBodyWidth || ankleWidth < minBodyWidth) {
+    return {
+      isReliable: false,
+      message: '拍摄角度可能过于侧身或身体关键部位重叠，请正对镜头重拍',
+    };
+  }
+
+  const shoulderHipRatio = shoulderWidth / hipWidth;
+  if (shoulderHipRatio > 2.5 || shoulderHipRatio < 0.4) {
+    return {
+      isReliable: false,
+      message: '拍摄角度或身体旋转可能影响识别，请正对镜头并保持身体自然站直',
+    };
+  }
+
+  return { isReliable: true };
 }
 
 export function validateKeypointsForMode(
@@ -379,31 +492,47 @@ export function validateKeypointsForMode(
   mode: CaptureMode,
   view?: PoseView
 ): ValidationResult {
-  console.log('[DEBUG validateKeypointsForMode] 开始验证, mode:', mode, 'view:', view);
-  console.log('[DEBUG validateKeypointsForMode] 传入的关键点数量:', keypoints.length);
-
-  const requirements = view === 'side' ? getSideViewRequirements(mode) : MODE_REQUIREMENTS[mode];
-
   const validKeypoints = keypoints.filter(k => k.score >= 0.5);
-  console.log('[DEBUG validateKeypointsForMode] 有效关键点数量(score>=0.5):', validKeypoints.length);
+
+  if (view === 'side') {
+    const sideRequirements = getSideViewRequirements(mode);
+    const visibleSide = selectVisibleSide(keypoints, sideRequirements.requiredParts);
+
+    if (!visibleSide) {
+      return {
+        isValid: false,
+        message: sideRequirements.message,
+      };
+    }
+
+    return { isValid: true, message: '验证通过', visibleSide: visibleSide.side };
+  }
+
+  const requirements = MODE_REQUIREMENTS[mode];
 
   const missingKeypoints: BlazePoseLandmark[] = [];
 
   for (const required of requirements.required) {
     const found = validKeypoints.find(k => k.name === required);
     if (!found) {
-      console.log('[DEBUG validateKeypointsForMode] 缺失:', required);
       missingKeypoints.push(required);
     }
   }
-
-  console.log('[DEBUG validateKeypointsForMode] 缺失的关键点列表:', missingKeypoints);
 
   if (missingKeypoints.length > 0) {
     return {
       isValid: false,
       message: requirements.message,
       missingKeypoints,
+    };
+  }
+
+  const quality = validatePoseQuality(keypoints, mode, view);
+  if (!quality.isReliable) {
+    return {
+      isValid: false,
+      message: quality.message ?? '拍摄角度可能影响识别，请调整姿势后重拍',
+      qualityWarnings: quality.message ? [quality.message] : undefined,
     };
   }
 

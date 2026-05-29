@@ -19,6 +19,18 @@ const DEFAULT_CONFIG: Required<PoseDetectorConfig> = {
 let detector: poseDetection.PoseDetector | null = null;
 let isTensorFlowReady = false;
 
+function resolveBlazePoseTfjsModelType(modelType: BlazePoseModelType): 'lite' | 'full' | 'heavy' {
+  switch (modelType) {
+    case 'BlazePose_Lite':
+      return 'lite';
+    case 'BlazePose_Heavy':
+      return 'heavy';
+    case 'BlazePose':
+    case 'BlazePose_Full':
+      return 'full';
+  }
+}
+
 export async function initializeTensorFlow(): Promise<void> {
   if (isTensorFlowReady) {
     return;
@@ -54,7 +66,7 @@ export async function createPoseDetector(config: PoseDetectorConfig = {}): Promi
   // 使用 MediaPipe BlazePose 33点模型
   const model = poseDetection.SupportedModels.BlazePose;
   const detectorConfig: poseDetection.BlazePoseTfjsModelConfig = {
-    modelType: 'full', // 使用完整模型以获得最高精度
+    modelType: resolveBlazePoseTfjsModelType(finalConfig.modelType),
     enableSmoothing: finalConfig.enableSmoothing,
     runtime: 'tfjs',
   };
