@@ -13,6 +13,8 @@ describe('LandingPage', () => {
 
     expect(screen.getByText('训练打卡')).toBeInTheDocument();
     expect(screen.getByText('今日未打卡')).toBeInTheDocument();
+    expect(screen.getByText('AI').closest('h1')).toHaveClass('landing-display-font');
+    expect(screen.getByText('开始你的体态之旅').closest('button')).toHaveClass('landing-display-font');
     expect(screen.queryByRole('button', { name: /PostureFit/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /PostureFit/i })).not.toBeInTheDocument();
   });
