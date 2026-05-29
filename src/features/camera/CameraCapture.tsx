@@ -1,5 +1,5 @@
 import { useCameraAccess } from './useCameraAccess';
-import { Camera, Upload, AlertCircle, CheckCircle, RotateCcw } from 'lucide-react';
+import { Camera, Upload, AlertCircle, CheckCircle, RotateCcw, ScanLine } from 'lucide-react';
 import type { CaptureMode, ViewSelection, PoseView } from '../../types';
 import aiCoachScanImage from '../../../assets/ai_coach_scan.png';
 
@@ -22,6 +22,90 @@ const CAPTURE_MODES: { value: CaptureMode; label: string }[] = [
   { value: 'sitting', label: '坐姿' },
 ];
 
+interface CaptureModeGuide {
+  headline: string;
+  recommendation: string;
+  views: Record<PoseView, CaptureViewGuide>;
+  detects: string;
+}
+
+interface CaptureViewGuide {
+  title: string;
+  keypoints: string;
+  tips: string[];
+}
+
+export const CAPTURE_MODE_GUIDES: Record<CaptureMode, CaptureModeGuide> = {
+  fullBody: {
+    headline: '适合完整体态和下肢问题',
+    recommendation: '推荐双视角：正面 + 侧面',
+    views: {
+      front: {
+        title: '正面全身照',
+        keypoints: '正面：头部、双肩、双髋、双膝、双踝',
+        tips: ['全身入镜，脚踝和脚尖不要被裁掉', '面向镜头自然站直，双脚与肩同宽', '衣服尽量贴身，避免遮挡膝盖和脚踝'],
+      },
+      side: {
+        title: '侧面全身照',
+        keypoints: '侧面：同侧肩、髋、膝、踝',
+        tips: ['侧身站立，让同侧肩、髋、膝、踝形成清晰轮廓', '膝超伸需要膝盖和脚踝清楚可见', '不要扭腰看镜头，保持自然站姿'],
+      },
+    },
+    detects: '高低肩、骨盆侧倾、膝内扣、头前伸、圆肩倾向、驼背风险、膝超伸',
+  },
+  halfBody: {
+    headline: '适合上半身体态和肩颈问题',
+    recommendation: '推荐正面或侧面',
+    views: {
+      front: {
+        title: '正面半身照',
+        keypoints: '正面：头部、双肩、双髋',
+        tips: ['画面至少包含头、肩、髋', '双臂自然下垂，不要挡住腰髋', '镜头保持水平，避免身体明显旋转'],
+      },
+      side: {
+        title: '侧面半身照',
+        keypoints: '侧面：同侧肩、髋',
+        tips: ['侧身站立或坐直，让肩和髋在同一侧清晰可见', '不要含胸低头或刻意挺胸', '手臂自然放松，避免遮挡肩髋线'],
+      },
+    },
+    detects: '高低肩、骨盆侧倾、头前伸、圆肩倾向、驼背风险；不用于膝内扣或膝超伸',
+  },
+  closeUp: {
+    headline: '适合肩颈近距离观察',
+    recommendation: '推荐正面或侧面',
+    views: {
+      front: {
+        title: '正面肩颈特写',
+        keypoints: '正面：头部、双肩',
+        tips: ['肩颈占画面主体，但不要裁掉头部', '双肩保持放松，不要耸肩', '避免转头或歪头看镜头'],
+      },
+      side: {
+        title: '侧面肩颈特写',
+        keypoints: '侧面：同侧耳朵、肩',
+        tips: ['露出耳朵和肩峰位置', '侧面轮廓尽量完整，避免头发遮挡耳朵', '保持自然站姿或坐姿，不要刻意前伸头部'],
+      },
+    },
+    detects: '高低肩、头部偏移、头前伸；不检测髋、膝相关问题',
+  },
+  sitting: {
+    headline: '适合久坐姿态和坐姿稳定性',
+    recommendation: '推荐正面或侧面',
+    views: {
+      front: {
+        title: '正面坐姿照',
+        keypoints: '正面：头部、双肩、双髋、双膝',
+        tips: ['坐直，双脚自然落地', '椅背和桌面不要遮挡髋部和膝盖', '镜头保持在身体正前方'],
+      },
+      side: {
+        title: '侧面坐姿照',
+        keypoints: '侧面：同侧肩、髋、膝',
+        tips: ['侧面照让肩、髋、膝形成清晰轮廓', '保持日常自然坐姿，不要临时刻意挺直', '桌面和扶手不要遮住腰髋位置'],
+      },
+    },
+    detects: '高低肩、骨盆侧倾、头前伸、圆肩倾向、驼背风险',
+  },
+};
+
 const VIEW_SELECTIONS: { value: ViewSelection; label: string; desc: string }[] = [
   { value: 'front', label: '正面', desc: '只拍正面' },
   { value: 'side', label: '侧面', desc: '只拍侧面' },
@@ -43,6 +127,152 @@ const SIDE_MODE_GUIDES: Record<CaptureMode, string> = {
   closeUp: '请侧身站立，肩颈部位对准画面，保持放松',
   sitting: '请侧身端正坐姿，双手放在膝盖上，保持放松',
 };
+
+function getGuideView(viewSelection: ViewSelection, currentCaptureView?: PoseView | null): PoseView {
+  if (viewSelection === 'front' || viewSelection === 'side') {
+    return viewSelection;
+  }
+  return currentCaptureView === 'front' ? 'side' : 'front';
+}
+
+function getGuideStageLabel(viewSelection: ViewSelection, currentCaptureView?: PoseView | null): string {
+  if (viewSelection === 'front') {
+    return '当前：正面照';
+  }
+  if (viewSelection === 'side') {
+    return '当前：侧面照';
+  }
+  return currentCaptureView === 'front' ? '下一张：侧面照' : '当前：正面照';
+}
+
+function getViewGuideLabel(view: PoseView): string {
+  return view === 'front' ? '正面照' : '侧面照';
+}
+
+function CaptureModeGuidePanel({
+  mode,
+  viewSelection,
+  currentCaptureView,
+}: {
+  mode: CaptureMode;
+  viewSelection: ViewSelection;
+  currentCaptureView?: PoseView | null;
+}) {
+  const guide = CAPTURE_MODE_GUIDES[mode];
+  const guideView = getGuideView(viewSelection, currentCaptureView);
+  const viewGuide = guide.views[guideView];
+  const stageLabel = getGuideStageLabel(viewSelection, currentCaptureView);
+  const displayedViews: PoseView[] = viewSelection === 'dual' ? ['front', 'side'] : [guideView];
+
+  return (
+    <section
+      data-testid="capture-mode-guide"
+      className="mt-4 rounded-2xl border border-white/60 bg-white/78 p-4 shadow-soft backdrop-blur-md"
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-blush-600">
+            <ScanLine className="h-4 w-4" />
+            拍摄模式指引
+          </div>
+          <h3 className="text-base font-semibold text-gray-800">
+            {viewSelection === 'dual' ? '双视角拍摄要求' : viewGuide.title}
+          </h3>
+          <p className="mt-1 text-sm font-medium text-mist-600">
+            {stageLabel} · {guide.headline} · {guide.recommendation}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-gray-600">可识别：{guide.detects}</p>
+        </div>
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:w-[56%]">
+          {displayedViews.map(view => {
+            const item = guide.views[view];
+            const isActiveGuide = view === guideView;
+            return (
+              <div
+                key={view}
+                className={`rounded-2xl border p-3 ${
+                  isActiveGuide
+                    ? 'border-blush-200 bg-blush-50/85'
+                    : 'border-white/70 bg-white/70'
+                }`}
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                    {getViewGuideLabel(view)}
+                  </p>
+                  {viewSelection === 'dual' && isActiveGuide && (
+                    <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-medium text-blush-600">
+                      当前
+                    </span>
+                  )}
+                </div>
+                <p className="rounded-xl bg-white/75 px-3 py-2 text-sm leading-5 text-gray-700">
+                  {item.keypoints}
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {item.tips.map(tip => (
+                    <li key={tip} className="rounded-xl bg-sky-50/80 px-3 py-2 text-sm leading-5 text-gray-700">
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CaptureViewProgress({
+  viewSelection,
+  isFirstCaptureDone,
+  isAllCapturesDone,
+}: {
+  viewSelection: ViewSelection;
+  isFirstCaptureDone: boolean;
+  isAllCapturesDone: boolean;
+}) {
+  if (viewSelection !== 'dual') {
+    return (
+      <div data-testid="capture-view-progress" className="mb-4 flex min-h-8 items-center justify-center">
+        <div className="flex items-center gap-2 text-blush-500">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-sm font-medium text-primary-500">
+            1
+          </div>
+          <span className="text-sm font-medium">{viewSelection === 'front' ? '正面照' : '侧面照'}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="capture-view-progress" className="mb-4 flex min-h-8 items-center justify-center gap-4">
+      <div className={`flex items-center gap-2 ${isFirstCaptureDone ? 'text-blush-600' : 'text-blush-500'}`}>
+        <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
+          isFirstCaptureDone ? 'bg-primary-100 text-primary-600' : 'bg-primary-50 text-primary-500'
+        }`}>
+          {isFirstCaptureDone ? (
+            <CheckCircle className="h-4 w-4" />
+          ) : '1'}
+        </div>
+        <span className="text-sm font-medium">正面照</span>
+      </div>
+      <div className="h-0.5 w-8 rounded-full bg-gray-200" />
+      <div className={`flex items-center gap-2 ${isAllCapturesDone ? 'text-blush-600' : 'text-gray-400'}`}>
+        <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
+          isAllCapturesDone ? 'bg-primary-100 text-primary-600' : 'bg-gray-100 text-gray-400'
+        }`}>
+          {isAllCapturesDone ? (
+            <CheckCircle className="h-4 w-4" />
+          ) : '2'}
+        </div>
+        <span className="text-sm font-medium">侧面照</span>
+      </div>
+    </div>
+  );
+}
 
 export function resolveCaptureView(
   viewSelection: ViewSelection,
@@ -181,34 +411,13 @@ export function CameraCapture({
         </div>
       </div>
 
-      {/* 拍摄进度指示器 */}
-      {viewSelection === 'dual' && (
-        <div className="mb-4 flex items-center justify-center gap-4">
-          <div className={`flex items-center gap-2 ${isFirstCaptureDone ? 'text-blush-600' : 'text-blush-500'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-              isFirstCaptureDone ? 'bg-primary-100 text-primary-600' : 'bg-primary-50 text-primary-500'
-            }`}>
-              {isFirstCaptureDone ? (
-                <CheckCircle className="w-4 h-4" />
-              ) : '1'}
-            </div>
-            <span className="text-sm font-medium">正面照</span>
-          </div>
-          <div className="w-8 h-0.5 bg-gray-200 rounded-full" />
-          <div className={`flex items-center gap-2 ${isAllCapturesDone ? 'text-blush-600' : 'text-gray-400'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-              isAllCapturesDone ? 'bg-primary-100 text-primary-600' : 'bg-gray-100 text-gray-400'
-            }`}>
-              {isAllCapturesDone ? (
-                <CheckCircle className="w-4 h-4" />
-              ) : '2'}
-            </div>
-            <span className="text-sm font-medium">侧面照</span>
-          </div>
-        </div>
-      )}
+      <CaptureViewProgress
+        viewSelection={viewSelection}
+        isFirstCaptureDone={isFirstCaptureDone}
+        isAllCapturesDone={isAllCapturesDone}
+      />
 
-      <div className="flex-1 bg-gray-900 rounded-2xl overflow-hidden relative">
+      <div data-testid="capture-preview" className="flex-1 bg-gray-900 rounded-2xl overflow-hidden relative">
         {permissionState === 'prompt' && !isActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800">
             <Camera className="w-16 h-16 text-gray-400 mb-4" />
@@ -282,6 +491,12 @@ export function CameraCapture({
           </div>
         )}
       </div>
+
+      <CaptureModeGuidePanel
+        mode={selectedMode}
+        viewSelection={viewSelection}
+        currentCaptureView={currentCaptureView}
+      />
 
       <div className="mt-4 flex gap-3 justify-center items-center flex-wrap">
         {isActive ? (

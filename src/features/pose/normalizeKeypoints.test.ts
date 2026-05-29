@@ -95,6 +95,18 @@ describe('validateKeypointsForMode', () => {
     expect(result.isValid).toBe(true);
   });
 
+  it('rejects side-view full-body photos when the visible leg keypoints needed for knee hyperextension are missing', () => {
+    const result = validateKeypointsForMode(
+      pose33(['right_shoulder', 'right_hip', 'right_knee', 'right_ankle', 'left_knee', 'left_ankle']),
+      'fullBody',
+      'side'
+    );
+
+    expect(result.isValid).toBe(false);
+    expect(result.message).toContain('膝盖和脚踝');
+    expect(result.missingKeypoints).toEqual(['left_knee', 'left_ankle']);
+  });
+
   it('rejects clearly unreliable front-view full-body poses before analysis', () => {
     const unreliable = pose33().map(point =>
       point.name === 'right_hip' ? { ...point, x: 500 } : point

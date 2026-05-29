@@ -9,11 +9,13 @@ vi.mock('./features/camera', () => ({
   CameraCapture: ({
     onUploadImage,
     onViewSelectionChange,
+    onModeChange,
     viewSelection,
     currentCaptureView,
   }: {
     onUploadImage: (imageDataUrl: string, view: 'front' | 'side') => void;
     onViewSelectionChange: (view: 'front' | 'side' | 'dual') => void;
+    onModeChange: (mode: 'fullBody' | 'halfBody' | 'closeUp' | 'sitting') => void;
     viewSelection: 'front' | 'side' | 'dual';
     currentCaptureView?: 'front' | 'side' | null;
   }) => (
@@ -23,6 +25,9 @@ vi.mock('./features/camera', () => ({
       </button>
       <button type="button" onClick={() => onViewSelectionChange('side')}>
         只拍侧面
+      </button>
+      <button type="button" onClick={() => onModeChange('halfBody')}>
+        切换半身模式
       </button>
       <button
         type="button"
@@ -205,6 +210,156 @@ describe('App frontend B flow', () => {
     expect(session.combinedAnalysis).toBeUndefined();
     expect(session.analysis.view).toBe('side');
     expect(session.analysis.issues.map((issue: { type: string }) => issue.type)).not.toContain('shoulderImbalance');
+  });
+
+  it('clears a partially uploaded dual-view photo when changing capture mode', async () => {
+    render(<App />);
+
+    enterCaptureIfNeeded();
+    fireEvent.click(screen.getByRole('button', { name: '上传正面样例' }));
+
+    await waitFor(() => {
+      const stored = localStorage.getItem('posturefit.appState.v1');
+      expect(stored).toContain('"view":"front"');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '切换半身模式' }));
+
+    await waitFor(() => {
+      const parsed = JSON.parse(localStorage.getItem('posturefit.appState.v1') ?? '{}');
+      const session = parsed.sessions.find((item: { id: string }) => item.id === parsed.currentSessionId);
+      expect(session.captureMode).toBe('halfBody');
+      expect(session.photos).toEqual([]);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
+
+    await waitFor(() => {
+      const parsed = JSON.parse(localStorage.getItem('posturefit.appState.v1') ?? '{}');
+      const session = parsed.sessions.find((item: { id: string }) => item.id === parsed.currentSessionId);
+      expect(session.photos.map((photo: { view: string }) => photo.view)).toEqual(['front']);
+      expect(session.step).toBe('capture');
+    });
+  });
+
+  it('stops retrying and shows an analysis-page error when pose detection fails', async () => {
+    const detectPoseFromImage = vi.fn<UsePoseDetectionResult['detectPoseFromImage']>().mockRejectedValue(new Error('检测到的关键点不足，请确保图片中包含清晰的人体'));
+    mockUsePoseDetection.mockReturnValue({
+      isModelLoading: false,
+      isDetecting: false,
+      error: null,
+      detectPoseFromImage,
+      detectPoseFromElement: vi.fn(),
+      modelType: 'BlazePose',
+      setModelType: vi.fn(),
+    });
+
+    render(<App />);
+
+    enterCaptureIfNeeded();
+    fireEvent.click(screen.getByRole('button', { name: '只拍侧面' }));
+    fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
+
+    expect(await screen.findByText('无法完成体态分析')).toBeInTheDocument();
+    expect(screen.getByText(/请确保全身或目标部位清晰入镜/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重新拍摄/上传照片' })).toBeInTheDocument();
+
+    await waitFor(() => expect(detectPoseFromImage).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('正在分析体态...')).not.toBeInTheDocument();
+
+    const stored = localStorage.getItem('posturefit.appState.v1');
+    expect(stored).not.toBeNull();
+    const session = JSON.parse(stored ?? '{}').sessions[0];
+    expect(session.photos[0].analysisStatus).toBe('failed');
+    expect(session.photos[0].analysisError.code).toBe('low_keypoints');
+  });
+
+  it('asks the user to retake and shows missing keypoint labels when validation fails', async () => {
+    const poseWithoutAnkles = pose.map(point =>
+      point.name === 'left_ankle' || point.name === 'right_ankle'
+        ? { ...point, score: 0.1 }
+        : point
+    );
+    mockUsePoseDetection.mockReturnValue({
+      isModelLoading: false,
+      isDetecting: false,
+      error: null,
+      detectPoseFromImage: vi.fn<UsePoseDetectionResult['detectPoseFromImage']>().mockResolvedValue(poseWithoutAnkles),
+      detectPoseFromElement: vi.fn(),
+      modelType: 'BlazePose',
+      setModelType: vi.fn(),
+    });
+
+    render(<App />);
+
+    enterCaptureIfNeeded();
+    fireEvent.click(screen.getByRole('button', { name: '只拍正面' }));
+    fireEvent.click(screen.getByRole('button', { name: '上传正面样例' }));
+
+    expect(await screen.findByText('无法完成体态分析')).toBeInTheDocument();
+    expect(screen.getByText(/重新拍摄或上传/)).toBeInTheDocument();
+    expect(screen.getByText(/缺失关键点：左踝、右踝/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重新拍摄/上传照片' })).toBeInTheDocument();
+
+    const stored = localStorage.getItem('posturefit.appState.v1');
+    expect(stored).not.toBeNull();
+    const session = JSON.parse(stored ?? '{}').sessions[0];
+    expect(session.photos[0].analysisError.missingKeypoints).toEqual(['左踝', '右踝']);
+  });
+
+  it('shows missing side-view leg keypoints instead of a knee hyperextension undetected result', async () => {
+    const sidePoseWithoutLeg = pose.map(point =>
+      point.name === 'left_knee' || point.name === 'left_ankle' ||
+      point.name === 'right_shoulder' || point.name === 'right_hip' || point.name === 'right_knee' || point.name === 'right_ankle'
+        ? { ...point, score: 0.1 }
+        : point
+    );
+    mockUsePoseDetection.mockReturnValue({
+      isModelLoading: false,
+      isDetecting: false,
+      error: null,
+      detectPoseFromImage: vi.fn<UsePoseDetectionResult['detectPoseFromImage']>().mockResolvedValue(sidePoseWithoutLeg),
+      detectPoseFromElement: vi.fn(),
+      modelType: 'BlazePose',
+      setModelType: vi.fn(),
+    });
+
+    render(<App />);
+
+    enterCaptureIfNeeded();
+    fireEvent.click(screen.getByRole('button', { name: '只拍侧面' }));
+    fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
+
+    expect(await screen.findByText('无法完成体态分析')).toBeInTheDocument();
+    expect(screen.getByText(/缺失关键点：左膝、左踝/)).toBeInTheDocument();
+    expect(screen.queryByText(/膝超伸 — 未检测到足够的关键点/)).not.toBeInTheDocument();
+  });
+
+  it('keeps successful dual-view analysis visible while blocking continue when the other view fails', async () => {
+    const detectPoseFromImage = vi.fn<UsePoseDetectionResult['detectPoseFromImage']>()
+      .mockResolvedValueOnce(pose)
+      .mockRejectedValueOnce(new Error('检测到的关键点不足，请确保图片中包含清晰的人体'));
+    mockUsePoseDetection.mockReturnValue({
+      isModelLoading: false,
+      isDetecting: false,
+      error: null,
+      detectPoseFromImage,
+      detectPoseFromElement: vi.fn(),
+      modelType: 'BlazePose',
+      setModelType: vi.fn(),
+    });
+
+    render(<App />);
+
+    enterCaptureIfNeeded();
+    fireEvent.click(screen.getByRole('button', { name: '上传正面样例' }));
+    fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
+
+    expect(await screen.findByText('分析结果')).toBeInTheDocument();
+    expect(await screen.findByText('无法完成体态分析')).toBeInTheDocument();
+    expect(screen.getByText(/侧面照片/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /继续选择教练/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(detectPoseFromImage).toHaveBeenCalledTimes(2));
   });
 
   it('shows mobile chat entry points and opens summary sheet on small screens', async () => {

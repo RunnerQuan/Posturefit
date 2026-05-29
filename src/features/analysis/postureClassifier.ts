@@ -47,6 +47,21 @@ function gaussianScoreFromBase(deviation: number, sigma: number, baseScore: numb
   return baseScore * Math.exp(exponent);
 }
 
+function gaussianScoreBetweenAnchors(
+  distance: number,
+  startDistance: number,
+  endDistance: number,
+  startScore: number,
+  endScore: number
+): number {
+  const segmentLength = endDistance - startDistance;
+  if (segmentLength <= 0) {
+    return startScore;
+  }
+  const sigma = sigmaForBoundaryScore(segmentLength, (endScore / startScore) * 100);
+  return gaussianScoreFromBase(distance - startDistance, sigma, startScore);
+}
+
 // =============================================================================
 // 体态问题分类器
 // 参考: docs/MediaPipe_BlazePose_体态识别替换技术文档.md
@@ -415,142 +430,145 @@ function getIssueView(type: PostureIssueType): PoseView {
   return frontViewTypes.includes(type) ? 'front' : 'side';
 }
 
-function getNormalBoundaryDistance(type: PostureIssueType, angle: number): number {
-  const thresholds = DEFAULT_THRESHOLDS;
-
-  switch (type) {
-    case 'forwardHead':
-      return Math.max(0, thresholds.forwardHead.normal - angle);
-    case 'kneeHyperextension': {
-      const { normalMin, normalMax } = thresholds.kneeHyperextension;
-      if (angle < normalMin) {
-        return normalMin - angle;
-      }
-      if (angle > normalMax) {
-        return angle - normalMax;
-      }
-      return 0;
-    }
-    case 'roundedShoulder':
-      return Math.max(0, Math.abs(angle) - thresholds.roundedShoulder.normal);
-    case 'shoulderImbalance':
-      return Math.max(0, Math.abs(angle) - thresholds.shoulderImbalance.normal);
-    case 'pelvicTilt':
-      return Math.max(0, Math.abs(angle) - thresholds.pelvicTilt.normal);
-    case 'anteriorPelvicTilt':
-      return Math.max(0, Math.abs(angle) - thresholds.anteriorPelvicTilt.normal);
-    case 'kneeValgus':
-      return Math.max(0, Math.abs(angle) - thresholds.kneeValgus.normal);
-    case 'headOffset':
-      return Math.max(0, Math.abs(angle) - thresholds.headOffset.normal);
-    case 'centerOfGravityShift':
-      return Math.max(0, Math.abs(angle) - thresholds.centerOfGravityShift.normal);
-    case 'hunchback':
-      return Math.max(0, Math.abs(angle) - thresholds.hunchback.normal);
-  }
-}
-
-function getCenterDistanceWithinNormal(type: PostureIssueType, angle: number): number {
-  const params = GAUSSIAN_PARAMS[type];
-
-  switch (type) {
-    case 'forwardHead':
-      return 0;
-    case 'kneeHyperextension':
-      return Math.abs(angle - params.center);
-    default:
-      return Math.abs(angle - params.center);
-  }
-}
-
-function getNormalBoundaryDistanceFromCenter(type: PostureIssueType, angle: number): number {
+function getScoringBoundaryDistances(type: PostureIssueType, angle: number): {
+  distance: number;
+  normalBoundaryDistance: number;
+  mildBoundaryDistance: number;
+  severeBoundaryDistance: number;
+} {
   const thresholds = DEFAULT_THRESHOLDS;
   const center = GAUSSIAN_PARAMS[type].center;
 
   switch (type) {
     case 'forwardHead':
-      return 0;
+      return {
+        distance: Math.max(0, center - angle),
+        normalBoundaryDistance: Math.max(0, center - thresholds.forwardHead.normal),
+        mildBoundaryDistance: center - thresholds.forwardHead.mild,
+        severeBoundaryDistance: center - thresholds.forwardHead.moderate,
+      };
     case 'kneeHyperextension': {
-      const { normalMin, normalMax } = thresholds.kneeHyperextension;
-      return angle < center ? center - normalMin : normalMax - center;
+      const { normalMin, normalMax, mild, moderate } = thresholds.kneeHyperextension;
+      if (angle >= center) {
+        return {
+          distance: Math.max(0, angle - center),
+          normalBoundaryDistance: normalMax - center,
+          mildBoundaryDistance: normalMax + 5 - center,
+          severeBoundaryDistance: normalMax + 10 - center,
+        };
+      }
+      return {
+        distance: center - angle,
+        normalBoundaryDistance: center - normalMin,
+        mildBoundaryDistance: center - mild,
+        severeBoundaryDistance: center - moderate,
+      };
     }
     case 'roundedShoulder':
-      return thresholds.roundedShoulder.normal;
+      return {
+        distance: Math.abs(angle - center),
+        normalBoundaryDistance: thresholds.roundedShoulder.normal,
+        mildBoundaryDistance: thresholds.roundedShoulder.mild,
+        severeBoundaryDistance: thresholds.roundedShoulder.moderate,
+      };
     case 'shoulderImbalance':
-      return thresholds.shoulderImbalance.normal;
+      return {
+        distance: Math.abs(angle - center),
+        normalBoundaryDistance: thresholds.shoulderImbalance.normal,
+        mildBoundaryDistance: thresholds.shoulderImbalance.mild,
+        severeBoundaryDistance: thresholds.shoulderImbalance.moderate,
+      };
     case 'pelvicTilt':
-      return thresholds.pelvicTilt.normal;
+      return {
+        distance: Math.abs(angle - center),
+        normalBoundaryDistance: thresholds.pelvicTilt.normal,
+        mildBoundaryDistance: thresholds.pelvicTilt.mild,
+        severeBoundaryDistance: thresholds.pelvicTilt.moderate,
+      };
     case 'anteriorPelvicTilt':
-      return thresholds.anteriorPelvicTilt.normal;
+      return {
+        distance: Math.abs(angle - center),
+        normalBoundaryDistance: thresholds.anteriorPelvicTilt.normal,
+        mildBoundaryDistance: thresholds.anteriorPelvicTilt.mild,
+        severeBoundaryDistance: thresholds.anteriorPelvicTilt.moderate,
+      };
     case 'kneeValgus':
-      return thresholds.kneeValgus.normal;
+      return {
+        distance: Math.abs(angle - center),
+        normalBoundaryDistance: thresholds.kneeValgus.normal,
+        mildBoundaryDistance: thresholds.kneeValgus.mild,
+        severeBoundaryDistance: thresholds.kneeValgus.moderate,
+      };
     case 'headOffset':
-      return thresholds.headOffset.normal;
+      return {
+        distance: Math.abs(angle - center),
+        normalBoundaryDistance: thresholds.headOffset.normal,
+        mildBoundaryDistance: thresholds.headOffset.mild,
+        severeBoundaryDistance: thresholds.headOffset.moderate,
+      };
     case 'centerOfGravityShift':
-      return thresholds.centerOfGravityShift.normal;
+      return {
+        distance: Math.abs(angle - center),
+        normalBoundaryDistance: thresholds.centerOfGravityShift.normal,
+        mildBoundaryDistance: thresholds.centerOfGravityShift.mild,
+        severeBoundaryDistance: thresholds.centerOfGravityShift.moderate,
+      };
     case 'hunchback':
-      return thresholds.hunchback.normal;
-  }
-}
-
-function getSevereBoundaryDistance(type: PostureIssueType): number {
-  const thresholds = DEFAULT_THRESHOLDS;
-
-  switch (type) {
-    case 'forwardHead':
-      return thresholds.forwardHead.normal - thresholds.forwardHead.moderate;
-    case 'kneeHyperextension':
-      return thresholds.kneeHyperextension.normalMin - thresholds.kneeHyperextension.moderate;
-    case 'roundedShoulder':
-      return thresholds.roundedShoulder.moderate - thresholds.roundedShoulder.normal;
-    case 'shoulderImbalance':
-      return thresholds.shoulderImbalance.moderate - thresholds.shoulderImbalance.normal;
-    case 'pelvicTilt':
-      return thresholds.pelvicTilt.moderate - thresholds.pelvicTilt.normal;
-    case 'anteriorPelvicTilt':
-      return thresholds.anteriorPelvicTilt.moderate - thresholds.anteriorPelvicTilt.normal;
-    case 'kneeValgus':
-      return thresholds.kneeValgus.moderate - thresholds.kneeValgus.normal;
-    case 'headOffset':
-      return thresholds.headOffset.moderate - thresholds.headOffset.normal;
-    case 'centerOfGravityShift':
-      return thresholds.centerOfGravityShift.moderate - thresholds.centerOfGravityShift.normal;
-    case 'hunchback':
-      return thresholds.hunchback.moderate - thresholds.hunchback.normal;
+      return {
+        distance: Math.abs(angle - center),
+        normalBoundaryDistance: thresholds.hunchback.normal,
+        mildBoundaryDistance: thresholds.hunchback.mild,
+        severeBoundaryDistance: thresholds.hunchback.moderate,
+      };
   }
 }
 
 function calculateThresholdAwareGaussianScore(type: PostureIssueType, angle: number, severity?: PostureSeverity): { deviation: number; score: number } {
-  if (severity === 'normal') {
-    const deviation = getCenterDistanceWithinNormal(type, angle);
-    const normalBoundaryDistance = getNormalBoundaryDistanceFromCenter(type, angle);
+  if (severity === 'undetected') {
+    return { deviation: 0, score: 100 };
+  }
 
-    if (normalBoundaryDistance === 0 || deviation === 0) {
-      return { deviation, score: 100 };
-    }
+  const {
+    distance,
+    normalBoundaryDistance,
+    mildBoundaryDistance,
+    severeBoundaryDistance,
+  } = getScoringBoundaryDistances(type, angle);
 
-    const sigma = sigmaForBoundaryScore(normalBoundaryDistance, 90);
+  if (distance === 0) {
+    return { deviation: distance, score: 100 };
+  }
+
+  if (distance <= normalBoundaryDistance) {
     return {
-      deviation,
-      score: Math.max(90, gaussianScore(deviation, 0, sigma)),
+      deviation: distance,
+      score: gaussianScoreBetweenAnchors(distance, 0, normalBoundaryDistance, 100, 75),
     };
   }
 
-  const deviation = getNormalBoundaryDistance(type, angle);
-
-  if (severity === 'undetected') {
-    return { deviation, score: 100 };
+  if (distance <= mildBoundaryDistance) {
+    return {
+      deviation: distance,
+      score: gaussianScoreBetweenAnchors(distance, normalBoundaryDistance, mildBoundaryDistance, 75, 50),
+    };
   }
 
-  const severeBoundaryDistance = getSevereBoundaryDistance(type);
-  if (deviation === 0 || severeBoundaryDistance === 0) {
-    return { deviation, score: 90 };
+  if (distance <= severeBoundaryDistance) {
+    return {
+      deviation: distance,
+      score: gaussianScoreBetweenAnchors(distance, mildBoundaryDistance, severeBoundaryDistance, 50, 20),
+    };
   }
 
-  const sigma = sigmaForBoundaryScore(severeBoundaryDistance, (55 / 90) * 100);
   return {
-    deviation,
-    score: gaussianScoreFromBase(deviation, sigma, 90),
+    deviation: distance,
+    score: gaussianScoreBetweenAnchors(
+      distance,
+      severeBoundaryDistance,
+      severeBoundaryDistance + Math.max(1, severeBoundaryDistance - mildBoundaryDistance),
+      20,
+      10
+    ),
   };
 }
 

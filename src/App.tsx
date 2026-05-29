@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, ChevronDown, History, RotateCcw, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ChevronDown, History, RotateCcw, X } from 'lucide-react';
 import { STEP_ORDER, canEnterStep, getStepProgress } from './app/stepMachine';
 import { StepIndicator } from './components/StepIndicator';
 import { AnalysisLoader } from './components/AnalysisLoader';
@@ -25,12 +25,16 @@ import type {
   CapturedPhoto,
   CheckInFeedback,
   CoachMessage,
+  PhotoAnalysisError,
+  PhotoAnalysisErrorCode,
   PoseView,
   PostureSession,
   PostureSessionStep,
   UserProfile,
   ViewSelection,
 } from './types';
+
+const ANALYSIS_TIMEOUT_MS = 30_000;
 
 function createEmptyAppState(): AppState {
   return {
@@ -49,12 +53,145 @@ function filterPhotosForViewSelection(photos: CapturedPhoto[], viewSelection: Vi
   return photos.filter(photo => allowedViews.includes(photo.view));
 }
 
+function getPhotoAnalysisStatus(photo: CapturedPhoto): NonNullable<CapturedPhoto['analysisStatus']> {
+  if (photo.analysis) {
+    return 'succeeded';
+  }
+  return photo.analysisStatus ?? 'pending';
+}
+
 function shouldStartAnalysis(session: PostureSession | null): boolean {
   if (!session || session.step !== 'analysis') {
     return false;
   }
   const photos = filterPhotosForViewSelection(session.photos, session.viewSelection);
-  return photos.length > 0 && photos.some(photo => !photo.analysis);
+  return photos.length > 0 && photos.some(photo => getPhotoAnalysisStatus(photo) === 'pending');
+}
+
+function getViewLabel(view: PoseView): string {
+  return view === 'front' ? '正面' : '侧面';
+}
+
+function classifyAnalysisError(error: unknown): PhotoAnalysisErrorCode {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'missingKeypoints' in error &&
+    Array.isArray((error as { missingKeypoints?: unknown }).missingKeypoints)
+  ) {
+    return 'low_keypoints';
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  if (/超时|timeout/i.test(message)) {
+    return 'timeout';
+  }
+  if (/没有检测到人体|未检测到人体|No pose|pose/i.test(message)) {
+    return 'no_pose';
+  }
+  if (/关键点不足|清晰的人体|身体在画面中清晰可见/.test(message)) {
+    return 'low_keypoints';
+  }
+  if (/拍摄角度|重叠|正对镜头|侧身|质量|重拍/.test(message)) {
+    return 'quality_gate';
+  }
+  if (/图片加载失败|image/i.test(message)) {
+    return 'image_load';
+  }
+  if (/模型|TensorFlow|backend|detector/i.test(message)) {
+    return 'model_error';
+  }
+  return 'unknown';
+}
+
+function getFriendlyAnalysisErrorMessage(code: PhotoAnalysisErrorCode): string {
+  switch (code) {
+    case 'no_pose':
+    case 'low_keypoints':
+      return '请确保全身或目标部位清晰入镜，光线充足，并避免身体被遮挡后重新拍摄或上传。';
+    case 'quality_gate':
+      return '这张照片的拍摄角度可能影响识别，请按当前视角要求调整站姿后重拍。';
+    case 'image_load':
+      return '图片加载失败，请重新上传一张清晰照片。';
+    case 'model_error':
+      return 'AI 模型暂时没有完成识别，请换一张更清晰的照片或稍后重试拍摄。';
+    case 'timeout':
+      return '这张照片分析时间过长，请换一张更清晰、主体更完整的照片后重新上传。';
+    case 'unknown':
+      return '这张照片暂时无法完成体态分析，请重新拍摄或上传一张更清晰的照片。';
+  }
+}
+
+function createAnalysisError(error: unknown): PhotoAnalysisError {
+  const code = classifyAnalysisError(error);
+  const missingKeypoints = typeof error === 'object' && error !== null && 'missingKeypoints' in error
+    ? (error as { missingKeypoints?: string[] }).missingKeypoints
+    : undefined;
+  return {
+    code,
+    message: getFriendlyAnalysisErrorMessage(code),
+    missingKeypoints,
+    failedAt: getCurrentISOString(),
+  };
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      reject(new Error('analysis timeout'));
+    }, timeoutMs);
+
+    promise.then(
+      value => {
+        window.clearTimeout(timeout);
+        resolve(value);
+      },
+      error => {
+        window.clearTimeout(timeout);
+        reject(error);
+      }
+    );
+  });
+}
+
+function AnalysisFailureCard({
+  photo,
+  onRetake,
+}: {
+  photo: CapturedPhoto;
+  onRetake: (photo: CapturedPhoto) => void;
+}) {
+  const viewLabel = getViewLabel(photo.view);
+  const message = photo.analysisError?.message ?? getFriendlyAnalysisErrorMessage('unknown');
+  const missingKeypoints = photo.analysisError?.missingKeypoints ?? [];
+
+  return (
+    <div className="mx-auto max-w-2xl rounded-2xl border border-red-100 bg-white/85 p-5 shadow-soft backdrop-blur-md">
+      <div className="flex gap-4">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-500">
+          <AlertTriangle className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-red-500">{viewLabel}照片</p>
+          <h3 className="mt-1 text-xl font-semibold text-gray-800">无法完成体态分析</h3>
+          <p className="mt-2 text-sm leading-6 text-gray-600">{message}</p>
+          {missingKeypoints.length > 0 && (
+            <p className="mt-2 rounded-2xl bg-red-50 px-3 py-2 text-sm leading-6 text-red-600">
+              缺失关键点：{missingKeypoints.join('、')}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => onRetake(photo)}
+            className="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blush-500 to-mist-500 px-6 py-3 text-base font-semibold text-white shadow-bubble transition hover:from-blush-600 hover:to-mist-600 sm:w-auto"
+          >
+            <RotateCcw className="h-4 w-4" />
+            重新拍摄/上传照片
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function getNextView(viewSelection: ViewSelection, currentCaptureView: PoseView | null): PoseView {
@@ -285,6 +422,7 @@ function AppShell() {
         id: `${Date.now()}-${view}`,
         view,
         imageUrl: dataUrl,
+        analysisStatus: 'pending',
         capturedAt: getCurrentISOString(),
       };
       const baseSession = isCaptureDraftSession(currentSession)
@@ -334,6 +472,36 @@ function AppShell() {
     [currentCaptureView, upsertCapturedPhoto, viewSelection]
   );
 
+  const handleCaptureModeChange = useCallback(
+    (nextMode: CaptureMode) => {
+      setCaptureMode(nextMode);
+      setCurrentCaptureView(null);
+      setError(null);
+
+      if (!currentSession || !isCaptureDraftSession(currentSession)) {
+        return;
+      }
+
+      const nextSession = updateSession(currentSession, {
+        captureMode: nextMode,
+        viewSelection,
+        photos: [],
+        imageDataUrl: undefined,
+        analysis: undefined,
+        combinedAnalysis: undefined,
+        plan: undefined,
+        currentExerciseNames: [],
+        completedExerciseNames: [],
+        generatedExerciseNames: [],
+        chatMessages: [],
+        step: 'capture',
+      });
+      persistSession(nextSession);
+      navigateToStep('capture');
+    },
+    [currentSession, navigateToStep, persistSession, viewSelection]
+  );
+
   const handleResetCapture = useCallback(() => {
     if (!currentSession || viewSelection !== 'dual' || currentCaptureView !== 'front') {
       return;
@@ -350,30 +518,43 @@ function AppShell() {
   const performAnalysis = useCallback(
     async (session: PostureSession) => {
       const scopedPhotos = filterPhotosForViewSelection(session.photos, session.viewSelection);
-      const photo = scopedPhotos.find(item => !item.analysis);
+      const photo = scopedPhotos.find(item => getPhotoAnalysisStatus(item) === 'pending');
       if (!photo) {
         return;
       }
 
       setIsAnalyzing(true);
       setError(null);
+      const analyzingPhotos = scopedPhotos.map(item =>
+        item.id === photo.id
+          ? { ...item, analysisStatus: 'analyzing' as const, analysisError: undefined, analysis: undefined }
+          : item
+      );
+      persistSession(updateSession(session, { photos: analyzingPhotos, step: 'analysis' }));
 
       try {
         const minKeypointCount = MODE_MIN_KEYPOINTS[session.captureMode];
-        const keypoints = await detectPoseFromImage(photo.imageUrl, minKeypointCount);
+        const keypoints = await withTimeout(
+          detectPoseFromImage(photo.imageUrl, minKeypointCount),
+          ANALYSIS_TIMEOUT_MS
+        );
         const validation = validateKeypointsForMode(keypoints, session.captureMode, photo.view);
 
         if (!validation.isValid) {
-          const missingLabels = validation.missingKeypoints?.map(keypoint => KEYPOINT_LABELS_33[keypoint]).join('、') || '';
-          setError(`${validation.message}${missingLabels ? `\n缺失关键点：${missingLabels}` : ''}`);
-          return;
+          const missingKeypoints = validation.missingKeypoints?.map(keypoint => KEYPOINT_LABELS_33[keypoint]) ?? [];
+          const validationError = Object.assign(new Error(validation.message), { missingKeypoints });
+          throw validationError;
         }
 
         const result = analyzePose(keypoints, {
           view: photo.view,
           captureMode: session.captureMode,
         });
-        const photos = scopedPhotos.map(item => (item.id === photo.id ? { ...item, analysis: result } : item));
+        const photos = analyzingPhotos.map(item =>
+          item.id === photo.id
+            ? { ...item, analysis: result, analysisStatus: 'succeeded' as const, analysisError: undefined }
+            : item
+        );
         const frontAnalysis = photos.find(item => item.view === 'front')?.analysis ?? null;
         const sideAnalysis = photos.find(item => item.view === 'side')?.analysis ?? null;
         const hasCompleteDualAnalysis = session.viewSelection === 'dual' && Boolean(frontAnalysis && sideAnalysis);
@@ -387,7 +568,17 @@ function AppShell() {
           step: 'analysis',
         }));
       } catch (err) {
-        setError(err instanceof Error ? err.message : '分析失败，请换一张清晰照片再试');
+        const analysisError = createAnalysisError(err);
+        const failedPhotos = analyzingPhotos.map(item =>
+          item.id === photo.id
+            ? { ...item, analysisStatus: 'failed' as const, analysisError, analysis: undefined }
+            : item
+        );
+        persistSession(updateSession(session, {
+          photos: failedPhotos,
+          combinedAnalysis: undefined,
+          step: 'analysis',
+        }));
       } finally {
         setIsAnalyzing(false);
       }
@@ -408,6 +599,16 @@ function AppShell() {
     setError(null);
     navigateToStep('capture');
   }, [navigateToStep]);
+
+  const handleRetakeFailedPhoto = useCallback((photo: CapturedPhoto) => {
+    if (currentSession?.viewSelection === 'dual') {
+      setCurrentCaptureView(photo.view === 'side' ? 'front' : null);
+    } else {
+      setCurrentCaptureView(null);
+    }
+    setError(null);
+    navigateToStep('capture');
+  }, [currentSession?.viewSelection, navigateToStep]);
 
   const handleProfileSubmit = useCallback(
     async (profile: UserProfile) => {
@@ -661,6 +862,8 @@ function AppShell() {
   const sideAnalysis = photos.find(photo => photo.view === 'side')?.analysis ?? null;
   const combinedResult = currentSession?.combinedAnalysis ?? (frontAnalysis && sideAnalysis ? combineAnalyses(frontAnalysis, sideAnalysis) : null);
   const displayAnalysis = getSessionDisplayAnalysis(currentSession);
+  const failedAnalysisPhotos = photos.filter(photo => getPhotoAnalysisStatus(photo) === 'failed');
+  const hasAnalysisFailure = failedAnalysisPhotos.length > 0;
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -786,7 +989,7 @@ function AppShell() {
 
           {/* 主内容区 */}
           <section className={`min-w-0 ${currentStep === 'chat' ? `flex min-h-0 flex-1 flex-col ${isMobileViewport ? 'gap-4' : 'gap-6'}` : 'space-y-6'}`}>
-            {error && (
+            {error && currentStep !== 'analysis' && (
               <div className="rounded-2xl border border-red-200/50 bg-gradient-to-br from-red-50/90 to-orange-50/90 backdrop-blur-sm p-4 text-sm leading-6 text-red-600 shadow-soft">
                 {error}
               </div>
@@ -800,7 +1003,7 @@ function AppShell() {
                 <CameraCapture
                   onCapture={handleCapture}
                   selectedMode={captureMode}
-                  onModeChange={setCaptureMode}
+                  onModeChange={handleCaptureModeChange}
                   onUploadImage={handleUpload}
                   viewSelection={viewSelection}
                   onViewSelectionChange={setViewSelection}
@@ -817,46 +1020,58 @@ function AppShell() {
                   <div className="mx-auto max-w-lg rounded-2xl bg-white/80 backdrop-blur-md p-4 shadow-soft border border-white/50">
                     <AnalysisLoader message={isModelLoading ? '正在加载AI模型...' : '正在分析体态...'} />
                   </div>
-                ) : displayAnalysis ? (
+                ) : displayAnalysis || hasAnalysisFailure ? (
                   <>
-                    {currentSession?.viewSelection === 'dual' && combinedResult ? (
-                      <CombinedAnalysisView
-                        frontAnalysis={frontAnalysis}
-                        sideAnalysis={sideAnalysis}
-                        combinedResult={combinedResult}
-                        showDualViews
-                        frontImageUrl={photos.find(photo => photo.view === 'front')?.imageUrl ?? ''}
-                        sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
-                      />
-                    ) : (
-                      <CombinedAnalysisView
-                        frontAnalysis={frontAnalysis}
-                        sideAnalysis={sideAnalysis}
-                        combinedResult={combinedResult}
-                        showDualViews={false}
-                        frontImageUrl={photos.find(photo => photo.view === 'front')?.imageUrl ?? photos[0]?.imageUrl ?? ''}
-                        sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
-                      />
+                    {displayAnalysis && (
+                      currentSession?.viewSelection === 'dual' && combinedResult ? (
+                        <CombinedAnalysisView
+                          frontAnalysis={frontAnalysis}
+                          sideAnalysis={sideAnalysis}
+                          combinedResult={combinedResult}
+                          showDualViews
+                          frontImageUrl={photos.find(photo => photo.view === 'front')?.imageUrl ?? ''}
+                          sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
+                        />
+                      ) : (
+                        <CombinedAnalysisView
+                          frontAnalysis={frontAnalysis}
+                          sideAnalysis={sideAnalysis}
+                          combinedResult={combinedResult}
+                          showDualViews={false}
+                          frontImageUrl={photos.find(photo => photo.view === 'front')?.imageUrl ?? photos[0]?.imageUrl ?? ''}
+                          sideImageUrl={photos.find(photo => photo.view === 'side')?.imageUrl ?? ''}
+                        />
+                      )
                     )}
 
-                    <div className="mx-auto flex max-w-2xl flex-col gap-3">
-                      <button
-                        type="button"
-                        onClick={() => moveToStep('profile')}
-                        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blush-500 to-mist-500 px-10 py-4 text-lg font-semibold text-white transition hover:from-blush-600 hover:to-mist-600 shadow-bubble hover:shadow-glow"
-                      >
-                        继续选择教练
-                        <ArrowRight className="h-5 w-5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRetry}
-                        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white/80 backdrop-blur-sm border border-blush-100 px-8 py-3.5 text-base font-medium text-blush-600 transition hover:bg-blush-50"
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                        重新拍摄
-                      </button>
-                    </div>
+                    {failedAnalysisPhotos.map(photo => (
+                      <AnalysisFailureCard
+                        key={photo.id}
+                        photo={photo}
+                        onRetake={handleRetakeFailedPhoto}
+                      />
+                    ))}
+
+                    {displayAnalysis && !hasAnalysisFailure && (
+                      <div className="mx-auto flex max-w-2xl flex-col gap-3">
+                        <button
+                          type="button"
+                          onClick={() => moveToStep('profile')}
+                          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blush-500 to-mist-500 px-10 py-4 text-lg font-semibold text-white transition hover:from-blush-600 hover:to-mist-600 shadow-bubble hover:shadow-glow"
+                        >
+                          继续选择教练
+                          <ArrowRight className="h-5 w-5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRetry}
+                          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white/80 backdrop-blur-sm border border-blush-100 px-8 py-3.5 text-base font-medium text-blush-600 transition hover:bg-blush-50"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          重新拍摄
+                        </button>
+                      </div>
+                    )}
                   </>
                 ) : null}
               </section>

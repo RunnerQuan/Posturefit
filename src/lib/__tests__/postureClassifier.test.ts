@@ -164,7 +164,7 @@ describe('calculateIssueScore', () => {
     expect(calculateIssueScore('forwardHead', 40).view).toBe('side');
   });
 
-  it('scores the ideal center as 100 and the normal boundary near 90', () => {
+  it('scores the ideal center as 100 and the normal boundary near 75', () => {
     const centerScore = calculateIssueScore({
       type: 'roundedShoulder',
       severity: 'normal',
@@ -183,10 +183,10 @@ describe('calculateIssueScore', () => {
     });
 
     expect(centerScore.gaussianScore).toBe(100);
-    expect(boundaryScore.gaussianScore).toBeCloseTo(90, 5);
+    expect(boundaryScore.gaussianScore).toBeCloseTo(75, 5);
   });
 
-  it('starts forward-head decay only below the normal CVA boundary', () => {
+  it('scores forward-head boundaries at 50 and 20 after the normal CVA boundary', () => {
     expect(calculateIssueScore({
       type: 'forwardHead',
       severity: 'normal',
@@ -203,11 +203,18 @@ describe('calculateIssueScore', () => {
       label: '头前伸轻度异常',
       view: 'side',
     }).gaussianScore;
-    expect(mildScore).toBeGreaterThan(75);
-    expect(mildScore).toBeLessThan(90);
+    expect(mildScore).toBeCloseTo(50, 5);
+    expect(calculateIssueScore({
+      type: 'forwardHead',
+      severity: 'moderate',
+      angle: 40,
+      threshold: 40,
+      label: '头前伸中度异常',
+      view: 'side',
+    }).gaussianScore).toBeCloseTo(20, 5);
   });
 
-  it('scores knee hyperextension center as 100, normal boundary near 90, and decays outside it', () => {
+  it('scores knee hyperextension center as 100, normal boundary near 75, and mild boundary near 50', () => {
     expect(calculateIssueScore({
       type: 'kneeHyperextension',
       severity: 'normal',
@@ -223,7 +230,7 @@ describe('calculateIssueScore', () => {
       threshold: 165,
       label: '膝超伸正常',
       view: 'side',
-    }).gaussianScore).toBeCloseTo(90, 5);
+    }).gaussianScore).toBeCloseTo(75, 5);
     const abnormalScore = calculateIssueScore({
       type: 'kneeHyperextension',
       severity: 'mild',
@@ -232,8 +239,26 @@ describe('calculateIssueScore', () => {
       label: '膝超伸轻度异常',
       view: 'side',
     }).gaussianScore;
-    expect(abnormalScore).toBeGreaterThan(75);
-    expect(abnormalScore).toBeLessThan(90);
+    expect(abnormalScore).toBeCloseTo(50, 5);
+  });
+
+  it('scores mild/moderate and moderate/severe boundaries at 50 and 20', () => {
+    expect(calculateIssueScore({
+      type: 'roundedShoulder',
+      severity: 'mild',
+      angle: 25,
+      threshold: 25,
+      label: '圆肩倾向轻度异常',
+      view: 'side',
+    }).gaussianScore).toBeCloseTo(50, 5);
+    expect(calculateIssueScore({
+      type: 'roundedShoulder',
+      severity: 'moderate',
+      angle: 30,
+      threshold: 30,
+      label: '圆肩倾向中度异常',
+      view: 'side',
+    }).gaussianScore).toBeCloseTo(20, 5);
   });
 });
 
@@ -287,7 +312,7 @@ describe('calculatePostureScore', () => {
     expect(score).toBe(100);
   });
 
-  it('keeps normal-boundary issues near 90 instead of full marks', () => {
+  it('keeps normal-boundary issues near 75 instead of full marks', () => {
     const issues: PostureIssue[] = [
       { type: 'roundedShoulder', severity: 'normal', angle: 20, threshold: 20, label: '圆肩正常', view: 'side' },
       { type: 'shoulderImbalance', severity: 'normal', angle: 2, threshold: 2, label: '高低肩正常', view: 'front' },
@@ -295,7 +320,7 @@ describe('calculatePostureScore', () => {
 
     const score = calculatePostureScore(issues);
 
-    expect(score).toBeCloseTo(90, 5);
+    expect(score).toBeCloseTo(75, 5);
   });
 
   it('should deduct points for mild issues', () => {
@@ -306,7 +331,8 @@ describe('calculatePostureScore', () => {
 
     const score = calculatePostureScore(issues);
 
-    expect(score).toBeGreaterThan(90);
+    expect(score).toBeGreaterThan(70);
+    expect(score).toBeLessThan(80);
   });
 
   it('should deduct more points for severe issues', () => {
@@ -353,7 +379,7 @@ describe('calculatePostureScore', () => {
 
     const score = calculatePostureScoreWithNormalization(issues).finalScore;
 
-    expect(score).toBeGreaterThan(94);
+    expect(score).toBeCloseTo(87.5, 5);
     expect(calculatePostureScore(issues)).toBe(score);
   });
 });
