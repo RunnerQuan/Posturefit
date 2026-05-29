@@ -329,7 +329,7 @@ export const ISSUE_LABELS: Record<PostureIssueType, string> = {
   headOffset: '头部偏移',
   centerOfGravityShift: '重心偏移',
   // 侧面视角问题
-  roundedShoulder: '圆肩',
-  hunchback: '驼背倾向',
+  roundedShoulder: '圆肩倾向',
+  hunchback: '驼背风险',
   kneeHyperextension: '膝超伸',
 };

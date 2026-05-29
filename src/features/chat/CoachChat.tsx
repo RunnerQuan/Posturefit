@@ -150,9 +150,13 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
   return (
     <section
       className={`relative mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
+      className={`relative mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
     >
       <div
         ref={scrollContainerRef}
+        onScroll={event => updateScrollState(event.currentTarget)}
+        onWheel={pauseAutoScrollForUserScroll}
+        onTouchMove={pauseAutoScrollForUserScroll}
         onScroll={event => updateScrollState(event.currentTarget)}
         onWheel={pauseAutoScrollForUserScroll}
         onTouchMove={pauseAutoScrollForUserScroll}

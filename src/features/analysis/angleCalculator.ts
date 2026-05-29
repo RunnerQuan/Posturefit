@@ -1,5 +1,10 @@
 import type { PoseKeypoint33, BlazePoseLandmark, PostureAngleMetrics } from '../../types';
-import { getBlazePoseKeypoint, getVisibleSideKeypoint } from '../pose/normalizeKeypoints';
+import {
+  estimateSideOrientation,
+  getBlazePoseKeypoint,
+  selectVisibleSide,
+  type SideOrientation,
+} from '../pose/normalizeKeypoints';
 import { calculateAngle, midpoint, distance, signedDistanceToLine, angleToHorizontal, type Point } from '../../lib/math';
 
 // =============================================================================
@@ -46,6 +51,57 @@ function getShoulderWidth(keypoints: PoseKeypoint33[]): number {
   return 1; // 避免除零
 }
 
+function toPoint(keypoint: PoseKeypoint33 | null): Point | null {
+  if (!keypoint || keypoint.score < 0.5) {
+    return null;
+  }
+  return { x: keypoint.x, y: keypoint.y };
+}
+
+function getDirectionMultiplier(orientation: SideOrientation): number | null {
+  if (orientation === 'facingRight') return 1;
+  if (orientation === 'facingLeft') return -1;
+  return null;
+}
+
+function distanceToSegmentLine(point: Point, lineStart: Point, lineEnd: Point): number {
+  return Math.abs(signedDistanceToLine(point, lineStart, lineEnd));
+}
+
+export function getHeadCenterPoint(keypoints: PoseKeypoint33[]): Point | null {
+  const weighted: Array<{ point: Point; weight: number }> = [];
+  const pairs: [BlazePoseLandmark, BlazePoseLandmark, number][] = [
+    ['left_ear', 'right_ear', 3],
+    ['left_eye', 'right_eye', 2],
+    ['left_eye_inner', 'right_eye_inner', 1.5],
+    ['left_eye_outer', 'right_eye_outer', 1.5],
+    ['mouth_left', 'mouth_right', 1],
+  ];
+
+  for (const [leftName, rightName, weight] of pairs) {
+    const left = getPoint(keypoints, leftName);
+    const right = getPoint(keypoints, rightName);
+    if (left && right) {
+      weighted.push({ point: midpoint(left, right), weight });
+    }
+  }
+
+  const nose = getPoint(keypoints, 'nose');
+  if (nose) {
+    weighted.push({ point: nose, weight: 2 });
+  }
+
+  if (weighted.length === 0) {
+    return null;
+  }
+
+  const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
+  return {
+    x: weighted.reduce((sum, item) => sum + item.point.x * item.weight, 0) / totalWeight,
+    y: weighted.reduce((sum, item) => sum + item.point.y * item.weight, 0) / totalWeight,
+  };
+}
+
 // ============================================================================
 // 正面视角指标计算
 // ============================================================================
@@ -55,12 +111,12 @@ function getShoulderWidth(keypoints: PoseKeypoint33[]): number {
  * 技术文档 6.4 节
  * 返回偏离水平姿态的角度（0° = 完全水平，越大越不平衡）
  */
-export function calculateShoulderImbalanceAngle(keypoints: PoseKeypoint33[]): number {
+export function calculateShoulderImbalanceAngle(keypoints: PoseKeypoint33[]): number | null {
   const leftShoulder = getPoint(keypoints, 'left_shoulder');
   const rightShoulder = getPoint(keypoints, 'right_shoulder');
 
   if (!leftShoulder || !rightShoulder) {
-    return 0;
+    return null;
   }
 
   const angle = angleToHorizontal(leftShoulder, rightShoulder);
@@ -75,12 +131,12 @@ export function calculateShoulderImbalanceAngle(keypoints: PoseKeypoint33[]): nu
  * 技术文档 6.5 节
  * 返回偏离水平姿态的角度（0° = 完全水平）
  */
-export function calculatePelvicTiltAngle(keypoints: PoseKeypoint33[]): number {
+export function calculatePelvicTiltAngle(keypoints: PoseKeypoint33[]): number | null {
   const leftHip = getPoint(keypoints, 'left_hip');
   const rightHip = getPoint(keypoints, 'right_hip');
 
   if (!leftHip || !rightHip) {
-    return 0;
+    return null;
   }
 
   const angle = angleToHorizontal(leftHip, rightHip);
@@ -93,7 +149,7 @@ export function calculatePelvicTiltAngle(keypoints: PoseKeypoint33[]): number {
  * 计算肩部中点、髋部中点和膝部中点的角度
  * 正值表示骨盆前倾，负值表示骨盆后倾
  */
-export function calculateAnteriorPelvicTiltAngle(keypoints: PoseKeypoint33[]): number {
+export function calculateAnteriorPelvicTiltAngle(keypoints: PoseKeypoint33[]): number | null {
   const leftShoulder = getPoint(keypoints, 'left_shoulder');
   const rightShoulder = getPoint(keypoints, 'right_shoulder');
   const leftHip = getPoint(keypoints, 'left_hip');
@@ -102,7 +158,7 @@ export function calculateAnteriorPelvicTiltAngle(keypoints: PoseKeypoint33[]): n
   const rightKnee = getPoint(keypoints, 'right_knee');
 
   if (!leftShoulder || !rightShoulder || !leftHip || !rightHip || !leftKnee || !rightKnee) {
-    return 0;
+    return null;
   }
 
   // 计算中点
@@ -124,7 +180,7 @@ export function calculateAnteriorPelvicTiltAngle(keypoints: PoseKeypoint33[]): n
  * 技术文档 6.6 节
  * 返回归一化后的分数 (0-1)，0 表示正常，1 表示严重
  */
-export function calculateKneeValgusAngle(keypoints: PoseKeypoint33[]): number {
+export function calculateKneeValgusAngle(keypoints: PoseKeypoint33[]): number | null {
   // 计算左右两侧
   const leftPoints = getBilateralPoints(keypoints, 'left');
   const rightPoints = getBilateralPoints(keypoints, 'right');
@@ -137,7 +193,9 @@ export function calculateKneeValgusAngle(keypoints: PoseKeypoint33[]): number {
     const fppa = calculateAngle(leftPoints.hip, leftPoints.knee, leftPoints.ankle);
     // 归一化：正常约 180°，内扣时角度减小
     const deviation = Math.max(0, 180 - fppa);
-    totalScore += deviation;
+    const offset = distanceToSegmentLine(leftPoints.knee, leftPoints.hip, leftPoints.ankle);
+    const legLength = distance(leftPoints.hip, leftPoints.ankle) || 1;
+    totalScore += deviation + (offset / legLength) * 45;
     count++;
   }
 
@@ -145,12 +203,14 @@ export function calculateKneeValgusAngle(keypoints: PoseKeypoint33[]): number {
   if (rightPoints.hip && rightPoints.knee && rightPoints.ankle) {
     const fppa = calculateAngle(rightPoints.hip, rightPoints.knee, rightPoints.ankle);
     const deviation = Math.max(0, 180 - fppa);
-    totalScore += deviation;
+    const offset = distanceToSegmentLine(rightPoints.knee, rightPoints.hip, rightPoints.ankle);
+    const legLength = distance(rightPoints.hip, rightPoints.ankle) || 1;
+    totalScore += deviation + (offset / legLength) * 45;
     count++;
   }
 
   if (count === 0) {
-    return 0;
+    return null;
   }
 
   // 转换为角度值（取平均偏差角度）
@@ -161,22 +221,22 @@ export function calculateKneeValgusAngle(keypoints: PoseKeypoint33[]): number {
  * 头部偏移角度：头部中线与躯干中线夹角
  * 技术文档 6.7 节
  */
-export function calculateHeadOffsetAngle(keypoints: PoseKeypoint33[]): number {
-  const nose = getPoint(keypoints, 'nose');
+export function calculateHeadOffsetAngle(keypoints: PoseKeypoint33[]): number | null {
+  const headCenter = getHeadCenterPoint(keypoints);
   const leftShoulder = getPoint(keypoints, 'left_shoulder');
   const rightShoulder = getPoint(keypoints, 'right_shoulder');
   const leftHip = getPoint(keypoints, 'left_hip');
   const rightHip = getPoint(keypoints, 'right_hip');
 
-  if (!nose || !leftShoulder || !rightShoulder || !leftHip || !rightHip) {
-    return 0;
+  if (!headCenter || !leftShoulder || !rightShoulder || !leftHip || !rightHip) {
+    return null;
   }
 
   const shoulderMid = midpoint(leftShoulder, rightShoulder);
   const hipMid = midpoint(leftHip, rightHip);
 
-  // 计算鼻子到躯干中线的距离
-  const offset = signedDistanceToLine(nose, shoulderMid, hipMid);
+  // 计算头部中心到躯干中线的距离
+  const offset = signedDistanceToLine(headCenter, shoulderMid, hipMid);
   const shoulderWidth = getShoulderWidth(keypoints);
 
   // 归一化偏移量，转换为角度
@@ -188,7 +248,7 @@ export function calculateHeadOffsetAngle(keypoints: PoseKeypoint33[]): number {
  * 身体重心偏移角度：身体中轴相对足部支撑中心的偏移
  * 技术文档 6.8 节
  */
-export function calculateCenterOfGravityShiftAngle(keypoints: PoseKeypoint33[]): number {
+export function calculateCenterOfGravityShiftAngle(keypoints: PoseKeypoint33[]): number | null {
   const leftShoulder = getPoint(keypoints, 'left_shoulder');
   const rightShoulder = getPoint(keypoints, 'right_shoulder');
   const leftHip = getPoint(keypoints, 'left_hip');
@@ -197,7 +257,7 @@ export function calculateCenterOfGravityShiftAngle(keypoints: PoseKeypoint33[]):
   const rightAnkle = getPoint(keypoints, 'right_ankle');
 
   if (!leftShoulder || !rightShoulder || !leftHip || !rightHip || !leftAnkle || !rightAnkle) {
-    return 0;
+    return null;
   }
 
   const shoulderMid = midpoint(leftShoulder, rightShoulder);
@@ -223,26 +283,18 @@ export function calculateCenterOfGravityShiftAngle(keypoints: PoseKeypoint33[]):
  * 关键点不可见时返回 null
  */
 export function calculateForwardHeadAngle(keypoints: PoseKeypoint33[]): number | null {
-  const visibleSide = getVisibleSideKeypoint(keypoints, 'left');
-  const NORMAL_CVA = 50; // 正常头颈椎角约 48-50°
-
-  const trySide = (side: { shoulder: Point | null; ear: Point | null }): number | null => {
-    if (!side.shoulder || !side.ear) return null;
-    const rawAngle = angleToHorizontal(side.shoulder, side.ear);
-    // atan2 gives 0° for vertical (ear directly above shoulder), 90° for horizontal
-    // CVA = 90 - |rawAngle| (so vertical = 90°, horizontal = 0°)
-    const absAngle = Math.min(Math.abs(rawAngle), 90);
-    const cva = 90 - absAngle;
-    // Positive deviation = forward head (CVA smaller than normal)
-    return Math.max(0, NORMAL_CVA - cva);
-  };
-
-  let result = trySide(visibleSide);
-  if (result === null) {
-    const rightSide = getVisibleSideKeypoint(keypoints, 'right');
-    result = trySide(rightSide);
+  const visibleSide = selectVisibleSide(keypoints, ['ear', 'shoulder']);
+  if (!visibleSide) {
+    return null;
   }
-  return result;
+
+  const shoulder = toPoint(visibleSide.shoulder);
+  const ear = toPoint(visibleSide.ear);
+  if (!shoulder || !ear) {
+    return null;
+  }
+
+  return Math.atan2(Math.abs(shoulder.y - ear.y), Math.abs(ear.x - shoulder.x)) * (180 / Math.PI);
 }
 
 /**
@@ -252,24 +304,24 @@ export function calculateForwardHeadAngle(keypoints: PoseKeypoint33[]): number |
  * 关键点不可见时返回 null
  */
 export function calculateRoundedShoulderAngle(keypoints: PoseKeypoint33[]): number | null {
-  const visibleSide = getVisibleSideKeypoint(keypoints, 'left');
-  const { shoulder, hip, ear } = visibleSide;
-
-  if (!shoulder || !hip) {
-    const rightSide = getVisibleSideKeypoint(keypoints, 'right');
-    if (!rightSide.shoulder || !rightSide.hip) {
-      return null;
-    }
-    return calculateRoundShoulderFromPoints(rightSide.shoulder, rightSide.hip, rightSide.ear);
+  const visibleSide = selectVisibleSide(keypoints, ['shoulder', 'hip']);
+  if (!visibleSide) {
+    return null;
   }
 
-  return calculateRoundShoulderFromPoints(shoulder, hip, ear);
+  return calculateRoundShoulderFromPoints(
+    toPoint(visibleSide.shoulder)!,
+    toPoint(visibleSide.hip)!,
+    toPoint(visibleSide.ear),
+    estimateSideOrientation(keypoints, visibleSide)
+  );
 }
 
 function calculateRoundShoulderFromPoints(
   shoulder: Point,
   hip: Point,
-  ear: Point | null
+  ear: Point | null,
+  orientation: SideOrientation
 ): number {
   // 计算肩-髋连线与垂直线的夹角（躯干前倾角）
   // 直立时约 0°，前倾时角度增大
@@ -281,7 +333,10 @@ function calculateRoundShoulderFromPoints(
   // 计算头部前移（如果有耳朵数据）
   let headForward = 0;
   if (ear) {
-    headForward = Math.abs(ear.x - shoulder.x);
+    const direction = getDirectionMultiplier(orientation);
+    headForward = direction === null
+      ? Math.abs(ear.x - shoulder.x)
+      : Math.max(0, (ear.x - shoulder.x) * direction);
   }
 
   // 综合评分
@@ -298,25 +353,25 @@ function calculateRoundShoulderFromPoints(
  * 技术文档 6.9 节
  * kyphosis_score = 0.4*FHP_norm + 0.3*shoulder_norm + 0.3*trunk_lean_norm
  */
-export function calculateHunchbackAngle(keypoints: PoseKeypoint33[]): number {
-  const visibleSide = getVisibleSideKeypoint(keypoints, 'left');
-  const { shoulder, hip, ear } = visibleSide;
-
-  if (!shoulder || !hip) {
-    const rightSide = getVisibleSideKeypoint(keypoints, 'right');
-    if (!rightSide.shoulder || !rightSide.hip) {
-      return 0;
-    }
-    return calculateHunchbackFromPoints(rightSide.shoulder, rightSide.hip, rightSide.ear);
+export function calculateHunchbackAngle(keypoints: PoseKeypoint33[]): number | null {
+  const visibleSide = selectVisibleSide(keypoints, ['shoulder', 'hip']);
+  if (!visibleSide) {
+    return null;
   }
 
-  return calculateHunchbackFromPoints(shoulder, hip, ear);
+  return calculateHunchbackFromPoints(
+    toPoint(visibleSide.shoulder)!,
+    toPoint(visibleSide.hip)!,
+    toPoint(visibleSide.ear),
+    estimateSideOrientation(keypoints, visibleSide)
+  );
 }
 
 function calculateHunchbackFromPoints(
   shoulder: Point,
   hip: Point,
-  ear: Point | null
+  ear: Point | null,
+  orientation: SideOrientation
 ): number {
   // 躯干前倾角
   const rawAngle = angleToHorizontal(hip, shoulder);
@@ -325,12 +380,17 @@ function calculateHunchbackFromPoints(
 
   // 修复：用肩-髋垂直距离归一化（典型值约 0.15-0.25，不会接近零）
   const bodyHeight = Math.abs(shoulder.y - hip.y) || 1;
-  const shoulderForward = Math.abs(shoulder.x - hip.x);
+  const direction = getDirectionMultiplier(orientation);
+  const shoulderForward = direction === null
+    ? Math.abs(shoulder.x - hip.x)
+    : Math.max(0, (shoulder.x - hip.x) * direction);
 
   // 头部前移
   let headForward = 0;
   if (ear) {
-    headForward = Math.abs(ear.x - shoulder.x);
+    headForward = direction === null
+      ? Math.abs(ear.x - shoulder.x)
+      : Math.max(0, (ear.x - shoulder.x) * direction);
   }
 
   // 归一化并加权
@@ -347,28 +407,44 @@ function calculateHunchbackFromPoints(
  * 膝超伸角度：侧面膝关节角
  * 技术文档 6.10 节
  */
-export function calculateKneeHyperextensionAngle(keypoints: PoseKeypoint33[]): number {
-  const visibleSide = getVisibleSideKeypoint(keypoints, 'left');
-  const { hip, knee, ankle } = visibleSide;
-
-  if (!hip || !knee || !ankle) {
-    const rightSide = getVisibleSideKeypoint(keypoints, 'right');
-    if (!rightSide.hip || !rightSide.knee || !rightSide.ankle) {
-      return 180; // 默认正常值
-    }
-    return calculateAngle(rightSide.hip, rightSide.knee, rightSide.ankle);
+export function calculateKneeHyperextensionAngle(keypoints: PoseKeypoint33[]): number | null {
+  const visibleSide = selectVisibleSide(keypoints, ['hip', 'knee', 'ankle']);
+  if (!visibleSide) {
+    return null;
   }
 
-  return calculateAngle(hip, knee, ankle);
+  const hip = toPoint(visibleSide.hip);
+  const knee = toPoint(visibleSide.knee);
+  const ankle = toPoint(visibleSide.ankle);
+  if (!hip || !knee || !ankle) {
+    return null;
+  }
+
+  const baseAngle = calculateAngle(hip, knee, ankle);
+  const orientation = estimateSideOrientation(keypoints, visibleSide);
+  const direction = getDirectionMultiplier(orientation);
+  if (direction === null) {
+    return baseAngle;
+  }
+
+  const legLength = distance(hip, ankle) || 1;
+  const posteriorOffset = -signedDistanceToLine(knee, hip, ankle) * direction;
+  const hyperextension = Math.max(0, posteriorOffset / legLength) * 45;
+
+  return hyperextension > 0 ? 180 + hyperextension : baseAngle;
 }
 
 /**
  * 计算躯干前倾角度（辅助指标）
  * 肩-髋连线与垂直线的夹角
  */
-export function calculateTrunkLeanAngle(keypoints: PoseKeypoint33[]): number {
-  const visibleSide = getVisibleSideKeypoint(keypoints, 'left');
-  const { shoulder, hip } = visibleSide;
+export function calculateTrunkLeanAngle(keypoints: PoseKeypoint33[]): number | null {
+  const visibleSide = selectVisibleSide(keypoints, ['shoulder', 'hip']);
+  if (!visibleSide) {
+    return null;
+  }
+  const shoulder = toPoint(visibleSide.shoulder);
+  const hip = toPoint(visibleSide.hip);
 
   const normalizeTrunkAngle = (rawAngle: number): number => {
     // atan2 返回 -180° 到 180°，转换为与垂直线（90°）的最小偏离
@@ -377,11 +453,7 @@ export function calculateTrunkLeanAngle(keypoints: PoseKeypoint33[]): number {
   };
 
   if (!shoulder || !hip) {
-    const rightSide = getVisibleSideKeypoint(keypoints, 'right');
-    if (!rightSide.shoulder || !rightSide.hip) {
-      return 0;
-    }
-    return normalizeTrunkAngle(angleToHorizontal(rightSide.hip, rightSide.shoulder));
+    return null;
   }
 
   return normalizeTrunkAngle(angleToHorizontal(hip, shoulder));

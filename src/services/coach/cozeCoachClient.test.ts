@@ -130,6 +130,8 @@ describe('CozeCoachClient', () => {
     expect(prompt.currentExerciseNames).toEqual([]);
     expect(prompt.completedExerciseNames).toEqual([]);
     expect(prompt.generatedExerciseNames).toEqual([]);
+    expect(body.session_id).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
+    expect(body.session_id).not.toBe('session-1');
     expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({
       Authorization: 'Bearer header.payload.signature',
     });
@@ -175,7 +177,8 @@ describe('CozeCoachClient', () => {
     expect(prompt.completedExerciseNames).toEqual(['墙壁天使']);
     expect(prompt.generatedExerciseNames).toEqual(['肩胛骨后缩', '胸椎伸展', '墙壁天使']);
     expect(prompt.previousMessages).toHaveLength(2);
-    expect(body.session_id).toBe('session-1');
+    expect(body.session_id).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
+    expect(body.session_id).not.toBe('session-1');
   });
 
   it('posts proxy payload without frontend token when using same-origin api route', async () => {
@@ -200,8 +203,9 @@ describe('CozeCoachClient', () => {
         mode: 'plan',
         primaryIssue: 'anteriorTilt',
       },
-      sessionId: 'session-1',
     });
+    expect(body.sessionId).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
+    expect(body.sessionId).not.toBe('session-1');
   });
 
   it('streams check-in feedback chunks', async () => {

@@ -84,4 +84,25 @@ describe('validateKeypointsForMode', () => {
 
     expect(result.isValid).toBe(true);
   });
+
+  it('allows side-view analysis when one side is visible and the far side is hidden', () => {
+    const result = validateKeypointsForMode(
+      pose33(['right_shoulder', 'right_hip', 'right_knee', 'right_ankle']),
+      'fullBody',
+      'side'
+    );
+
+    expect(result.isValid).toBe(true);
+  });
+
+  it('rejects clearly unreliable front-view full-body poses before analysis', () => {
+    const unreliable = pose33().map(point =>
+      point.name === 'right_hip' ? { ...point, x: 500 } : point
+    );
+
+    const result = validateKeypointsForMode(unreliable, 'fullBody', 'front');
+
+    expect(result.isValid).toBe(false);
+    expect(result.message).toContain('拍摄角度');
+  });
 });

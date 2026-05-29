@@ -109,18 +109,18 @@ export type PostureSeverity = 'normal' | 'mild' | 'moderate' | 'severe' | 'undet
 export type PostureAngleMetrics = {
   // 正面视角指标
   forwardHeadAngle: number | null;       // 头前伸角度 (CVA近似角)
-  shoulderImbalanceAngle: number;  // 高低肩角度 (atan2斜率)
-  pelvicTiltAngle: number;         // 骨盆侧倾角度 (atan2斜率)
-  kneeValgusAngle: number;         // 膝内扣角度 (FPPA)
-  headOffsetAngle: number;         // 头部偏移角度
-  centerOfGravityShiftAngle: number; // 重心偏移角度
+  shoulderImbalanceAngle: number | null;  // 高低肩角度 (atan2斜率)
+  pelvicTiltAngle: number | null;         // 骨盆侧倾角度 (atan2斜率)
+  kneeValgusAngle: number | null;         // 膝内扣角度 (FPPA)
+  headOffsetAngle: number | null;         // 头部偏移角度
+  centerOfGravityShiftAngle: number | null; // 重心偏移角度
   // 侧面视角指标（nullable: 关键点不可见时无法计算）
   roundedShoulderAngle: number | null;    // 圆肩角度
-  hunchbackAngle: number;          // 驼背倾向角度 (加权综合)
-  kneeHyperextensionAngle: number; // 膝超伸角度
-  anteriorTiltAngle: number;       // 骨盆前倾角度
+  hunchbackAngle: number | null;          // 驼背倾向角度 (加权综合)
+  kneeHyperextensionAngle: number | null; // 膝超伸角度
+  anteriorTiltAngle: number | null;       // 骨盆前倾角度
   // 辅助指标（用于综合评分）
-  trunkLeanAngle?: number;         // 躯干前倾角度
+  trunkLeanAngle?: number | null;         // 躯干前倾角度
 };
 
 export type PostureIssue = {
