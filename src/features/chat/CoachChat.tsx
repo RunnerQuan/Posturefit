@@ -70,7 +70,6 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
   const autoScrollEnabledRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
-  const [mobileQuickScrollTop, setMobileQuickScrollTop] = useState<number | null>(null);
 
   const setAutoScrollEnabled = (enabled: boolean) => {
     autoScrollEnabledRef.current = enabled;
@@ -119,24 +118,6 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
       return;
     }
     container.scrollTop = top;
-  };
-
-  const updateMobileQuickScrollPosition = () => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    const visualViewport = window.visualViewport;
-    const viewportTop = visualViewport?.offsetTop ?? 0;
-    const viewportHeight = visualViewport?.height ?? window.innerHeight;
-    const pageHeight = document.documentElement.scrollHeight || document.body.scrollHeight || viewportHeight;
-    const scrollableDistance = Math.max(pageHeight - viewportHeight, 1);
-    const scrollProgress = Math.min(Math.max(window.scrollY / scrollableDistance, 0), 1);
-    const safeTop = viewportTop + 92;
-    const safeBottom = viewportTop + viewportHeight - 230;
-    const maxTop = Math.max(safeTop, safeBottom);
-    const nextTop = safeTop + (maxTop - safeTop) * scrollProgress;
-
-    setMobileQuickScrollTop(nextTop);
   };
 
   const scrollPageTo = (top: number, behavior: ScrollBehavior = 'auto') => {
@@ -219,16 +200,11 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
         setAutoScrollEnabled(false);
       }
       syncScrollControls();
-      updateMobileQuickScrollPosition();
     };
     window.addEventListener('scroll', handleWindowScroll, { passive: true });
-    window.visualViewport?.addEventListener('resize', updateMobileQuickScrollPosition);
-    window.visualViewport?.addEventListener('scroll', updateMobileQuickScrollPosition);
     handleWindowScroll();
     return () => {
       window.removeEventListener('scroll', handleWindowScroll);
-      window.visualViewport?.removeEventListener('resize', updateMobileQuickScrollPosition);
-      window.visualViewport?.removeEventListener('scroll', updateMobileQuickScrollPosition);
     };
   }, [isResponding]);
 
@@ -237,10 +213,9 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
       className={`relative mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
     >
       <div
-        className="fixed z-50 flex flex-col gap-1.5 rounded-full border border-white/70 bg-white/45 p-1 shadow-soft backdrop-blur-xl transition-[top,opacity,transform] duration-200 md:hidden"
+        className="fixed bottom-[calc(9.5rem+env(safe-area-inset-bottom))] right-3 z-50 flex flex-col gap-1.5 rounded-full border border-white/70 bg-white/45 p-1 shadow-soft backdrop-blur-xl md:hidden"
         style={{
-          top: mobileQuickScrollTop === null ? '42dvh' : `${mobileQuickScrollTop}px`,
-          right: 'max(0.25rem, env(safe-area-inset-right))',
+          right: 'max(0.75rem, env(safe-area-inset-right))',
         }}
       >
         <button

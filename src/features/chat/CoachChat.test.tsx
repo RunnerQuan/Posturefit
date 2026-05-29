@@ -93,8 +93,14 @@ describe('CoachChat', () => {
 
     const scroller = screen.getByText('第一条消息').closest('[aria-live="polite"]') as HTMLDivElement;
     mockScrollerMetrics(scroller, scrollTo);
+    const mobileTopButton = screen.getByRole('button', { name: '移动端回到顶部' });
+    const mobileControls = mobileTopButton.parentElement;
 
-    fireEvent.click(screen.getByRole('button', { name: '移动端回到顶部' }));
+    expect(mobileControls).toHaveClass('fixed');
+    expect(mobileControls).toHaveClass('bottom-[calc(9.5rem+env(safe-area-inset-bottom))]');
+    expect(mobileControls).toHaveStyle({ right: 'max(0.75rem, env(safe-area-inset-right))' });
+
+    fireEvent.click(mobileTopButton);
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
 
     scrollTo.mockClear();
