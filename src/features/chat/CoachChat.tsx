@@ -98,9 +98,10 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
 
   const updateScrollState = (container: HTMLDivElement) => {
     const distanceFromBottom = container.scrollHeight - container.clientHeight - container.scrollTop;
-    const isNearBottom = distanceFromBottom <= 80;
-    setAutoScrollEnabled(isNearBottom);
-    setShowScrollToBottom(!isNearBottom);
+    const containerNearBottom = distanceFromBottom <= 80;
+    const pageNearBottom = isPageNearBottom();
+    setAutoScrollEnabled(containerNearBottom && pageNearBottom);
+    setShowScrollToBottom(!containerNearBottom || !pageNearBottom);
     setShowScrollToTop(container.scrollTop > 160 || (typeof window !== 'undefined' && window.scrollY > 160));
   };
 
@@ -212,16 +213,29 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
     <section
       className={`relative mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
     >
-      {showScrollToBottom && (
+      <div
+        className="fixed bottom-[calc(9.5rem+env(safe-area-inset-bottom))] z-50 flex flex-row items-center gap-2 md:hidden"
+        style={{ right: 'max(0.75rem, env(safe-area-inset-right))' }}
+      >
+        {showScrollToBottom && (
+          <button
+            type="button"
+            onClick={() => scrollToBottom('smooth')}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-white/92 text-blush-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-300"
+            aria-label="移动端查看最新回复"
+          >
+            <ArrowDown className="h-5 w-5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={scrollToTop}
-          className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-1/2 z-50 inline-flex h-11 w-11 -translate-x-1/2 items-center justify-center rounded-full border border-white/85 bg-white/92 text-mist-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300 md:hidden"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-white/92 text-mist-700 shadow-soft backdrop-blur-xl transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-mist-300"
           aria-label="移动端回到顶部"
         >
           <ArrowUp className="h-5 w-5" />
         </button>
-      )}
+      </div>
 
       <div
         ref={scrollContainerRef}
@@ -236,17 +250,17 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
           const isStreamingDraft = !isUser && !message.content && isResponding;
           const messageExercises = isUser ? [] : extractExercisesFromMessage(message.content, plan?.primaryIssue ?? null);
           return (
-            <div key={message.id} className={`mx-auto flex w-full max-w-4xl gap-2 py-3 sm:gap-3 lg:gap-4 lg:py-5 ${isUser ? 'justify-end' : 'justify-start'}`}>
+            <div key={message.id} className={`mx-auto flex w-full max-w-4xl gap-2 py-2 sm:gap-3 sm:py-3 lg:gap-4 lg:py-5 ${isUser ? 'justify-end' : 'justify-start'}`}>
               {!isUser && (
                 <div className="mt-1 h-10 w-10 shrink-0 overflow-hidden rounded-full border border-white/80 bg-blush-50 shadow-sm sm:h-12 sm:w-12 lg:h-14 lg:w-14">
                   <img src={coachAvatar} alt="" className="h-full w-full object-cover" />
                 </div>
               )}
               <div
-                className={`text-base leading-7 ${
+                className={`text-[15px] leading-6 sm:text-base sm:leading-7 ${
                   isUser
-                    ? 'chat-liquid-bubble chat-liquid-bubble-user max-w-[84%] rounded-[24px] px-4 py-3 text-gray-950 sm:max-w-[78%] lg:max-w-[72%] lg:rounded-[26px] lg:px-5'
-                    : 'chat-liquid-bubble max-w-[calc(100%-3rem)] rounded-[24px] px-4 py-4 text-gray-900 sm:max-w-[min(900px,calc(100%-3.5rem))] lg:max-w-[min(900px,calc(100%-3rem))] lg:rounded-[30px] lg:px-5'
+                    ? 'chat-liquid-bubble chat-liquid-bubble-user max-w-[84%] rounded-[24px] px-3 py-2 text-gray-950 sm:max-w-[78%] sm:px-4 sm:py-3 lg:max-w-[72%] lg:rounded-[26px] lg:px-5'
+                    : 'chat-liquid-bubble max-w-[calc(100%-3rem)] rounded-[24px] px-3 py-2.5 text-gray-900 sm:max-w-[min(900px,calc(100%-3.5rem))] sm:px-4 sm:py-4 lg:max-w-[min(900px,calc(100%-3rem))] lg:rounded-[30px] lg:px-5'
                 }`}
               >
                 {isStreamingDraft ? (
@@ -260,7 +274,10 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
                       <p className="whitespace-pre-line break-words">{message.content}</p>
                     ) : (
                       <>
-                        <MarkdownMessage content={stripExerciseBlock(message.content)} />
+                        <MarkdownMessage
+                          content={stripExerciseBlock(message.content)}
+                          className="text-[15px] leading-6 sm:text-base sm:leading-7"
+                        />
                         {!isResponding || messages[messages.length - 1]?.id !== message.id ? (
                           <ExerciseCards exercises={messageExercises} />
                         ) : null}

@@ -105,7 +105,7 @@ export function MarkdownMessage({ content, className = '' }: MarkdownMessageProp
       return;
     }
     elements.push(
-      <ul key={`list-${elements.length}`} className="my-1 list-disc space-y-0.5 pl-5">
+      <ul key={`list-${elements.length}`} className="my-0 list-disc space-y-0.5 pl-4 sm:pl-5">
         {listItems.map((item, index) => (
           <li key={`${item}-${index}`} className="text-blush-700">{renderInline(item)}</li>
         ))}
@@ -118,7 +118,7 @@ export function MarkdownMessage({ content, className = '' }: MarkdownMessageProp
     const trimmed = line.trim();
     if (!trimmed) {
       flushList();
-      elements.push(<div key={`space-${index}`} className="h-1" />);
+      elements.push(<div key={`space-${index}`} className="h-0.5" />);
       return;
     }
 
@@ -127,7 +127,7 @@ export function MarkdownMessage({ content, className = '' }: MarkdownMessageProp
       flushList();
       const Tag = heading[1].length === 1 ? 'h3' : 'h4';
       elements.push(
-        <Tag key={`heading-${index}`} className="mt-1 font-semibold bg-gradient-to-r from-blush-600 to-mist-600 bg-clip-text text-transparent">
+        <Tag key={`heading-${index}`} className="mt-0 font-semibold bg-gradient-to-r from-blush-600 to-mist-600 bg-clip-text text-transparent">
           {renderInline(heading[2])}
         </Tag>
       );
@@ -142,7 +142,7 @@ export function MarkdownMessage({ content, className = '' }: MarkdownMessageProp
 
     flushList();
     elements.push(
-      <p key={`p-${index}`} className="my-0.5 text-blush-800">
+      <p key={`p-${index}`} className="my-0 text-blush-800">
         {renderInline(trimmed)}
       </p>
     );
@@ -150,5 +150,5 @@ export function MarkdownMessage({ content, className = '' }: MarkdownMessageProp
 
   flushList();
 
-  return <div className={`space-y-0.5 break-words ${className}`}>{elements}</div>;
+  return <div className={`space-y-0 break-words ${className}`}>{elements}</div>;
 }
