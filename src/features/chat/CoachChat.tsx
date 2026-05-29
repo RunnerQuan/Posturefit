@@ -213,11 +213,11 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
     <section
       className={`relative mx-auto flex min-h-[calc(100dvh-8rem)] w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-soft backdrop-blur-md lg:h-[calc(100vh-10.5rem)] lg:min-h-[600px] ${className}`.trim()}
     >
-      <div
-        className="fixed bottom-[calc(9.5rem+env(safe-area-inset-bottom))] z-50 flex flex-row items-center gap-2 md:hidden"
-        style={{ right: 'max(0.75rem, env(safe-area-inset-right))' }}
-      >
-        {showScrollToBottom && (
+      {showScrollToBottom && (
+        <div
+          className="fixed top-[calc(0.5rem+env(safe-area-inset-top))] z-50 md:hidden"
+          style={{ right: 'max(0.75rem, env(safe-area-inset-right))' }}
+        >
           <button
             type="button"
             onClick={() => scrollToBottom('smooth')}
@@ -226,7 +226,12 @@ export function CoachChat({ messages, plan, isResponding, onFeedback, onRequestN
           >
             <ArrowDown className="h-5 w-5" />
           </button>
-        )}
+        </div>
+      )}
+      <div
+        className="fixed bottom-[calc(9.5rem+env(safe-area-inset-bottom))] z-50 md:hidden"
+        style={{ right: 'max(0.75rem, env(safe-area-inset-right))' }}
+      >
         <button
           type="button"
           onClick={scrollToTop}
