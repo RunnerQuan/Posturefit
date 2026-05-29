@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from './App';
 import { usePoseDetection } from './features/pose';
 import type { UsePoseDetectionResult } from './features/pose';
@@ -248,14 +248,14 @@ describe('App frontend B flow', () => {
     expect(oldSession.profile.userGoal).toBe('改善圆肩');
   });
 
-  it('does not clear the selected history session when opening an incomplete record from chat', async () => {
+  it('shows only complete chat sessions in the chat history sidebar', async () => {
     const now = new Date().toISOString();
     localStorage.setItem('posturefit.appState.v1', JSON.stringify({
-      currentSessionId: 'chat-session',
+      currentSessionId: 'complete-session',
       schemaVersion: 2,
       sessions: [
         {
-          id: 'chat-session',
+          id: 'complete-session',
           createdAt: now,
           updatedAt: now,
           step: 'chat',
@@ -263,7 +263,7 @@ describe('App frontend B flow', () => {
           captureMode: 'fullBody',
           viewSelection: 'side',
           photos: [
-            { id: 'chat-photo', view: 'side', imageUrl: 'data:image/chat', capturedAt: now },
+            { id: 'complete-photo', view: 'side', imageUrl: 'data:image/complete', capturedAt: now },
           ],
           analysis: {
             keypoints: [],
@@ -281,7 +281,7 @@ describe('App frontend B flow', () => {
               trunkLeanAngle: 0,
             },
             issues: [],
-            primaryIssue: null,
+            primaryIssue: 'roundedShoulder',
             score: 80,
             analyzedAt: now,
             view: 'side',
@@ -293,18 +293,41 @@ describe('App frontend B flow', () => {
             bodyState: 'normal',
           },
           chatMessages: [
-            { id: 'm1', role: 'assistant', content: '测试消息', createdAt: now, source: 'mock' },
+            { id: 'm1', role: 'assistant', content: '完整记录', createdAt: now, source: 'mock' },
           ],
         },
         {
           id: 'pending-session',
           createdAt: now,
           updatedAt: now,
-          step: 'capture',
+          step: 'analysis',
           sourceType: 'upload',
           captureMode: 'fullBody',
           viewSelection: 'side',
-          photos: [],
+          photos: [
+            { id: 'pending-photo', view: 'side', imageUrl: 'data:image/pending', capturedAt: now },
+          ],
+          analysis: {
+            keypoints: [],
+            metrics: {
+              forwardHeadAngle: 6,
+              roundedShoulderAngle: 22,
+              shoulderImbalanceAngle: 0,
+              pelvicTiltAngle: 0,
+              anteriorTiltAngle: 25,
+              kneeValgusAngle: 0,
+              headOffsetAngle: 0,
+              centerOfGravityShiftAngle: 0,
+              hunchbackAngle: 0,
+              kneeHyperextensionAngle: 0,
+              trunkLeanAngle: 0,
+            },
+            issues: [],
+            primaryIssue: 'forwardHead',
+            score: 72,
+            analyzedAt: now,
+            view: 'side',
+          },
           chatMessages: [],
         },
       ],
@@ -313,14 +336,117 @@ describe('App frontend B flow', () => {
 
     render(<App />);
 
-    const pendingButton = (await screen.findAllByRole('button', { name: /待分析记录/ }))[1];
-    fireEvent.click(pendingButton);
+    const historyPanel = await screen.findByText('历史评估');
+    const historyAside = historyPanel.closest('aside');
+    expect(historyAside).not.toBeNull();
+    const historyQueries = within(historyAside as HTMLElement);
+    expect(historyQueries.getByText('圆肩倾向')).toBeInTheDocument();
+    expect(historyQueries.queryByText('头前伸')).not.toBeInTheDocument();
+  });
 
-    expect(await screen.findByRole('button', { name: '上传正面样例' })).toBeInTheDocument();
+  it('opens complete history records from chat on the chat page even when the saved step is analysis', async () => {
+    const now = new Date().toISOString();
+    localStorage.setItem('posturefit.appState.v1', JSON.stringify({
+      currentSessionId: 'active-session',
+      schemaVersion: 2,
+      sessions: [
+        {
+          id: 'active-session',
+          createdAt: now,
+          updatedAt: now,
+          step: 'chat',
+          sourceType: 'upload',
+          captureMode: 'fullBody',
+          viewSelection: 'side',
+          photos: [
+            { id: 'active-photo', view: 'side', imageUrl: 'data:image/active', capturedAt: now },
+          ],
+          analysis: {
+            keypoints: [],
+            metrics: {
+              forwardHeadAngle: 0,
+              roundedShoulderAngle: 20,
+              shoulderImbalanceAngle: 0,
+              pelvicTiltAngle: 0,
+              anteriorTiltAngle: 0,
+              kneeValgusAngle: 0,
+              headOffsetAngle: 0,
+              centerOfGravityShiftAngle: 0,
+              hunchbackAngle: 0,
+              kneeHyperextensionAngle: 0,
+              trunkLeanAngle: 0,
+            },
+            issues: [],
+            primaryIssue: 'roundedShoulder',
+            score: 82,
+            analyzedAt: now,
+            view: 'side',
+          },
+          profile: {
+            coachStyle: 'strict',
+            coachGender: 'female',
+            userGoal: '改善圆肩',
+            bodyState: 'normal',
+          },
+          chatMessages: [
+            { id: 'active-message', role: 'assistant', content: '当前聊天', createdAt: now, source: 'mock' },
+          ],
+        },
+        {
+          id: 'history-session',
+          createdAt: now,
+          updatedAt: now,
+          step: 'analysis',
+          sourceType: 'upload',
+          captureMode: 'fullBody',
+          viewSelection: 'side',
+          photos: [
+            { id: 'history-photo', view: 'side', imageUrl: 'data:image/history', capturedAt: now },
+          ],
+          analysis: {
+            keypoints: [],
+            metrics: {
+              forwardHeadAngle: 0,
+              roundedShoulderAngle: 0,
+              shoulderImbalanceAngle: 8,
+              pelvicTiltAngle: 0,
+              anteriorTiltAngle: 0,
+              kneeValgusAngle: 0,
+              headOffsetAngle: 0,
+              centerOfGravityShiftAngle: 0,
+              hunchbackAngle: 0,
+              kneeHyperextensionAngle: 0,
+              trunkLeanAngle: 0,
+            },
+            issues: [],
+            primaryIssue: 'shoulderImbalance',
+            score: 74,
+            analyzedAt: now,
+            view: 'side',
+          },
+          profile: {
+            coachStyle: 'strict',
+            coachGender: 'female',
+            userGoal: '改善高低肩',
+            bodyState: 'normal',
+          },
+          chatMessages: [
+            { id: 'history-message', role: 'assistant', content: '历史聊天内容', createdAt: now, source: 'mock' },
+          ],
+        },
+      ],
+    }));
+    window.history.pushState(null, '', '/chat');
 
-    const stored = JSON.parse(localStorage.getItem('posturefit.appState.v1') ?? '{}');
-    expect(stored.currentSessionId).toBe('pending-session');
-    expect(stored.sessions).toHaveLength(2);
+    render(<App />);
+
+    const historyPanel = await screen.findByText('历史评估');
+    const historyAside = historyPanel.closest('aside') as HTMLElement;
+    fireEvent.click(within(historyAside).getByText('高低肩'));
+
+    await screen.findByText('历史聊天内容');
+    expect(window.location.pathname).toBe('/chat');
+    expect(screen.queryByText('分析结果')).not.toBeInTheDocument();
   });
 
   it('shows mobile chat entry points and opens summary sheet on small screens', async () => {
