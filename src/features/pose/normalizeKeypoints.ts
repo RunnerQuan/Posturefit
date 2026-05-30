@@ -65,7 +65,7 @@ const BLAZEPOSE_INDEX_TO_LANDMARK: Record<number, BlazePoseLandmark> = {
 export const MODE_MIN_KEYPOINTS: Record<CaptureMode, number> = {
   fullBody: 12,    // 需要全身：鼻子、肩、髋、膝、踝、脚跟、脚尖
   halfBody: 5,     // 需要：鼻子、肩(2)、髋(2)
-  closeUp: 3,      // 只需要：鼻子、肩(2)
+  closeUp: 5,      // 需要：鼻子、肩(2)、髋(2)
   sitting: 7,      // 需要：鼻子、肩(2)、髋(2)、膝(2)
 };
 
@@ -343,21 +343,21 @@ export const SKELETON_CONNECTIONS: [KeypointName, KeypointName][] = [
 function getSideViewRequirements(mode: CaptureMode): { requiredParts: SideBodyPart[]; message: string } {
   const messages: Record<CaptureMode, string> = {
     closeUp: '请上传包含同侧耳朵和肩部的侧面照片',
-    halfBody: '请上传包含同侧肩部和髋部的侧面照片',
-    sitting: '请上传包含同侧肩部、髋部和膝盖的侧面照片',
-    fullBody: '请上传包含同侧肩部、髋部、膝盖和脚踝的侧面照片',
+    halfBody: '请上传包含同侧耳朵、肩部和髋部的侧面照片',
+    sitting: '请上传包含同侧耳朵、肩部、髋部和膝盖的侧面照片',
+    fullBody: '请上传包含同侧耳朵、肩部、髋部、膝盖和脚踝的侧面照片',
   };
 
   if (mode === 'closeUp') {
     return { requiredParts: ['ear', 'shoulder'], message: messages[mode] };
   }
   if (mode === 'sitting') {
-    return { requiredParts: ['shoulder', 'hip', 'knee'], message: messages[mode] };
+    return { requiredParts: ['ear', 'shoulder', 'hip', 'knee'], message: messages[mode] };
   }
   if (mode === 'fullBody') {
-    return { requiredParts: ['shoulder', 'hip', 'knee', 'ankle'], message: messages[mode] };
+    return { requiredParts: ['ear', 'shoulder', 'hip', 'knee', 'ankle'], message: messages[mode] };
   }
-  return { requiredParts: ['shoulder', 'hip'], message: messages[mode] };
+  return { requiredParts: ['ear', 'shoulder', 'hip'], message: messages[mode] };
 }
 
 function getSidePartLandmark(side: PoseSide, part: SideBodyPart): BlazePoseLandmark {
@@ -402,9 +402,9 @@ const MODE_REQUIREMENTS: Record<CaptureMode, { required: BlazePoseLandmark[]; op
     message: '请上传包含肩部和髋部的照片',
   },
   closeUp: {
-    required: ['nose', 'left_shoulder', 'right_shoulder'],
-    optional: ['left_ear', 'right_ear', 'left_elbow', 'right_elbow', 'left_hip', 'right_hip'],
-    message: '请上传包含肩颈部位的照片',
+    required: ['nose', 'left_shoulder', 'right_shoulder', 'left_hip', 'right_hip'],
+    optional: ['left_ear', 'right_ear', 'left_elbow', 'right_elbow'],
+    message: '请上传包含头部、双肩和双髋的照片，确保头部偏移和高低肩都能识别',
   },
   sitting: {
     required: ['nose', 'left_shoulder', 'right_shoulder', 'left_hip', 'right_hip', 'left_knee', 'right_knee'],
@@ -532,7 +532,7 @@ export function validateKeypointsForMode(
 
   if (view === 'side') {
     const sideRequirements = getSideViewRequirements(mode);
-    const anchorSide = selectVisibleSide(keypoints, ['shoulder', 'hip']);
+    const anchorSide = selectVisibleSide(keypoints, mode === 'closeUp' ? ['shoulder'] : ['shoulder', 'hip']);
 
     if (!anchorSide) {
       return {

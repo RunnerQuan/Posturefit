@@ -6,6 +6,7 @@ import {
   calculateHeadOffsetAngle,
   calculateKneeHyperextensionAngle,
   calculateKneeValgusAngle,
+  calculateShoulderImbalanceAngle,
 } from '../../features/analysis/angleCalculator';
 import type { BlazePoseLandmark, PoseKeypoint33 } from '../../types';
 
@@ -216,6 +217,39 @@ describe('calculateAllPostureAngles', () => {
 
     expect(metrics.shoulderImbalanceAngle).toBeNull();
     expect(metrics.headOffsetAngle).toBeNull();
+  });
+
+  it('returns null for every official issue when its required keypoints are missing', () => {
+    const front = uprightFrontViewPose();
+    const side = uprightSideViewPose();
+
+    expect(calculateShoulderImbalanceAngle(front.map(point =>
+      point.name === 'left_shoulder' ? missingKeypoint33('left_shoulder') : point
+    ))).toBeNull();
+    expect(calculateAllPostureAngles(front.map(point =>
+      point.name === 'left_hip' ? missingKeypoint33('left_hip') : point
+    )).pelvicTiltAngle).toBeNull();
+    expect(calculateKneeValgusAngle(front.map(point =>
+      point.name.endsWith('_knee') ? { ...point, score: 0 } : point
+    ))).toBeNull();
+    expect(calculateHeadOffsetAngle(front.map(point =>
+      point.name === 'right_hip' ? missingKeypoint33('right_hip') : point
+    ))).toBeNull();
+    expect(calculateAllPostureAngles(front.map(point =>
+      point.name === 'right_ankle' ? missingKeypoint33('right_ankle') : point
+    )).centerOfGravityShiftAngle).toBeNull();
+    expect(calculateForwardHeadAngle(side.map(point =>
+      point.name.endsWith('_ear') ? { ...point, score: 0 } : point
+    ))).toBeNull();
+    expect(calculateAllPostureAngles(side.map(point =>
+      point.name.endsWith('_hip') ? { ...point, score: 0 } : point
+    )).roundedShoulderAngle).toBeNull();
+    expect(calculateAllPostureAngles(side.map(point =>
+      point.name.endsWith('_shoulder') ? { ...point, score: 0 } : point
+    )).hunchbackAngle).toBeNull();
+    expect(calculateKneeHyperextensionAngle(side.map(point =>
+      point.name.endsWith('_ankle') ? { ...point, score: 0 } : point
+    ))).toBeNull();
   });
 
   it('uses face-center fallback for head offset when the nose is missing', () => {

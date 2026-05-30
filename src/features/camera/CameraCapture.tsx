@@ -47,8 +47,8 @@ export const CAPTURE_MODE_GUIDES: Record<CaptureMode, CaptureModeGuide> = {
       },
       side: {
         title: '侧面全身照',
-        keypoints: '侧面：同侧肩、髋、膝、踝',
-        tips: ['侧身站立，让同侧肩、髋、膝、踝形成清晰轮廓', '膝超伸需要膝盖和脚踝清楚可见', '不要扭腰看镜头，保持自然站姿'],
+        keypoints: '侧面：同侧耳朵、肩、髋、膝、踝',
+        tips: ['侧身站立，让同侧耳朵、肩、髋、膝、踝形成清晰轮廓', '膝超伸需要膝盖和脚踝清楚可见', '不要扭腰看镜头，保持自然站姿'],
       },
     },
     detects: '高低肩、骨盆侧倾、膝内扣、头前伸、圆肩倾向、驼背风险、膝超伸',
@@ -64,20 +64,20 @@ export const CAPTURE_MODE_GUIDES: Record<CaptureMode, CaptureModeGuide> = {
       },
       side: {
         title: '侧面半身照',
-        keypoints: '侧面：同侧肩、髋',
-        tips: ['侧身站立或坐直，让肩和髋在同一侧清晰可见', '不要含胸低头或刻意挺胸', '手臂自然放松，避免遮挡肩髋线'],
+        keypoints: '侧面：同侧耳朵、肩、髋',
+        tips: ['侧身站立或坐直，让耳朵、肩和髋在同一侧清晰可见', '不要含胸低头或刻意挺胸', '手臂自然放松，避免遮挡肩髋线'],
       },
     },
     detects: '高低肩、骨盆侧倾、头前伸、圆肩倾向、驼背风险；不用于膝内扣或膝超伸',
   },
   closeUp: {
-    headline: '适合肩颈近距离观察',
+    headline: '适合肩颈和上半身近距离观察',
     recommendation: '推荐正面或侧面',
     views: {
       front: {
-        title: '正面肩颈特写',
-        keypoints: '正面：头部、双肩',
-        tips: ['肩颈占画面主体，但不要裁掉头部', '双肩保持放松，不要耸肩', '避免转头或歪头看镜头'],
+        title: '正面肩颈近景',
+        keypoints: '正面：头部、双肩、双髋',
+        tips: ['画面包含头、双肩和双髋，避免只裁到肩颈', '双肩保持放松，不要耸肩', '避免转头或歪头看镜头'],
       },
       side: {
         title: '侧面肩颈特写',
@@ -85,7 +85,7 @@ export const CAPTURE_MODE_GUIDES: Record<CaptureMode, CaptureModeGuide> = {
         tips: ['露出耳朵和肩峰位置', '侧面轮廓尽量完整，避免头发遮挡耳朵', '保持自然站姿或坐姿，不要刻意前伸头部'],
       },
     },
-    detects: '高低肩、头部偏移、头前伸；不检测髋、膝相关问题',
+    detects: '高低肩、头部偏移、头前伸；不检测膝相关问题',
   },
   sitting: {
     headline: '适合久坐姿态和坐姿稳定性',
@@ -98,8 +98,8 @@ export const CAPTURE_MODE_GUIDES: Record<CaptureMode, CaptureModeGuide> = {
       },
       side: {
         title: '侧面坐姿照',
-        keypoints: '侧面：同侧肩、髋、膝',
-        tips: ['侧面照让肩、髋、膝形成清晰轮廓', '保持日常自然坐姿，不要临时刻意挺直', '桌面和扶手不要遮住腰髋位置'],
+        keypoints: '侧面：同侧耳朵、肩、髋、膝',
+        tips: ['侧面照让耳朵、肩、髋、膝形成清晰轮廓', '保持日常自然坐姿，不要临时刻意挺直', '桌面和扶手不要遮住腰髋位置'],
       },
     },
     detects: '高低肩、骨盆侧倾、头前伸、圆肩倾向、驼背风险',
@@ -116,14 +116,14 @@ const VIEW_SELECTIONS: { value: ViewSelection; label: string; desc: string }[] =
 const FRONT_MODE_GUIDES: Record<CaptureMode, string> = {
   fullBody: '请面向摄像头站立，双脚与肩同宽，保持放松',
   halfBody: '请面向摄像头，露出上半身，双臂自然下垂，保持放松',
-  closeUp: '请面向摄像头，肩颈部位对准画面，保持放松',
+  closeUp: '请面向摄像头，画面包含头、双肩和双髋，保持放松',
   sitting: '请端正坐姿，面向摄像头，双手放在膝盖上，保持放松',
 };
 
 // 侧面拍摄指引
 const SIDE_MODE_GUIDES: Record<CaptureMode, string> = {
   fullBody: '请侧身站立，双脚与肩同宽，保持放松',
-  halfBody: '请侧身站立，露出上半身，双臂自然下垂，保持放松',
+  halfBody: '请侧身站立，露出同侧耳朵、肩和髋，双臂自然下垂，保持放松',
   closeUp: '请侧身站立，肩颈部位对准画面，保持放松',
   sitting: '请侧身端正坐姿，双手放在膝盖上，保持放松',
 };

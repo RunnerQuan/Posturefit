@@ -540,16 +540,20 @@ function calculateThresholdAwareGaussianScore(type: PostureIssueType, angle: num
   }
 
   if (distance <= normalBoundaryDistance) {
+    const fullScoreBoundaryDistance = normalBoundaryDistance / 2;
+    if (distance <= fullScoreBoundaryDistance) {
+      return { deviation: distance, score: 100 };
+    }
     return {
       deviation: distance,
-      score: gaussianScoreBetweenAnchors(distance, 0, normalBoundaryDistance, 100, 75),
+      score: gaussianScoreBetweenAnchors(distance, fullScoreBoundaryDistance, normalBoundaryDistance, 100, 90),
     };
   }
 
   if (distance <= mildBoundaryDistance) {
     return {
       deviation: distance,
-      score: gaussianScoreBetweenAnchors(distance, normalBoundaryDistance, mildBoundaryDistance, 75, 50),
+      score: gaussianScoreBetweenAnchors(distance, normalBoundaryDistance, mildBoundaryDistance, 90, 50),
     };
   }
 

@@ -46,7 +46,7 @@ describe('CameraCapture', () => {
     expect(screen.getByText('拍摄模式指引')).toBeInTheDocument();
     expect(screen.getByText(/当前：正面照/)).toBeInTheDocument();
     expect(screen.getByText(/正面：头部、双肩、双髋、双膝、双踝/)).toBeInTheDocument();
-    expect(screen.getByText(/侧面：同侧肩、髋、膝、踝/)).toBeInTheDocument();
+    expect(screen.getByText(/侧面：同侧耳朵、肩、髋、膝、踝/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '半身' }));
     expect(onModeChange).toHaveBeenCalledWith('halfBody');
@@ -136,7 +136,7 @@ describe('CameraCapture', () => {
     );
 
     expect(screen.getByText(/当前：侧面照/)).toBeInTheDocument();
-    expect(screen.getByText(/侧面：同侧肩、髋、膝、踝/)).toBeInTheDocument();
+    expect(screen.getByText(/侧面：同侧耳朵、肩、髋、膝、踝/)).toBeInTheDocument();
     expect(screen.getByText(/膝超伸需要膝盖和脚踝清楚可见/)).toBeInTheDocument();
 
     rerender(
@@ -154,6 +154,6 @@ describe('CameraCapture', () => {
 
     expect(screen.getByText(/下一张：侧面照/)).toBeInTheDocument();
     expect(screen.getByText(/正面：头部、双肩、双髋、双膝、双踝/)).toBeInTheDocument();
-    expect(screen.getByText(/侧面：同侧肩、髋、膝、踝/)).toBeInTheDocument();
+    expect(screen.getByText(/侧面：同侧耳朵、肩、髋、膝、踝/)).toBeInTheDocument();
   });
 });
