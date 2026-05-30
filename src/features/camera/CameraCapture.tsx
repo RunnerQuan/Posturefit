@@ -18,7 +18,6 @@ interface CameraCaptureProps {
 const CAPTURE_MODES: { value: CaptureMode; label: string }[] = [
   { value: 'fullBody', label: '全身' },
   { value: 'halfBody', label: '半身' },
-  { value: 'closeUp', label: '特写' },
   { value: 'sitting', label: '坐姿' },
 ];
 
