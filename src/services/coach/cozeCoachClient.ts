@@ -3,11 +3,11 @@ import { getCurrentISOString } from '../../lib/time';
 import { COACH_NAME } from '../../data/demoProfiles';
 import type {
   CheckInFeedback,
+  CoachAnalysis,
   CoachClient,
   CoachFeedbackRequest,
   CoachMessage,
   CoachPlanRequest,
-  PostureAnalysisResult,
   PostureIssue,
   PostureIssueType,
   UserProfile,
@@ -116,8 +116,16 @@ function mapCozeIssueType(issue: PostureIssueType | null | undefined): CozeIssue
   return COZE_ISSUE_TYPES.has(mapped as CozeIssueType) ? (mapped as CozeIssueType) : null;
 }
 
-function getCozeIssues(analysis?: PostureAnalysisResult): CozePromptPayload['issues'] {
-  return analysis?.issues
+function getAnalysisIssues(analysis?: CoachAnalysis): PostureIssue[] {
+  if (!analysis) {
+    return [];
+  }
+
+  return 'allIssues' in analysis ? analysis.allIssues : analysis.issues;
+}
+
+function getCozeIssues(analysis?: CoachAnalysis): CozePromptPayload['issues'] {
+  return getAnalysisIssues(analysis)
     .flatMap(issue => {
       const type = mapCozeIssueType(issue.type);
       if (!type) {
@@ -132,7 +140,7 @@ function getCozeIssues(analysis?: PostureAnalysisResult): CozePromptPayload['iss
     }) ?? [];
 }
 
-function getCozePrimaryIssue(analysis: PostureAnalysisResult | undefined): CozeIssueType | '' {
+function getCozePrimaryIssue(analysis: CoachAnalysis | undefined): CozeIssueType | '' {
   const primaryIssue = mapCozeIssueType(analysis?.primaryIssue);
   if (primaryIssue) {
     return primaryIssue;
@@ -143,7 +151,7 @@ function getCozePrimaryIssue(analysis: PostureAnalysisResult | undefined): CozeI
 
 function buildPayloadBase(
   profile: UserProfile,
-  analysis: PostureAnalysisResult | undefined,
+  analysis: CoachAnalysis | undefined,
   memory: Pick<CozePromptPayload, 'currentExerciseNames' | 'completedExerciseNames' | 'generatedExerciseNames'>,
   captureMode = 'fullBody',
   viewSelection = 'dual'
@@ -323,7 +331,7 @@ export class CozeCoachClient implements CoachClient {
   }
 
   private createRequestInit(payload: CozePromptPayload, _sessionId?: string): RequestInit {
-    const resolvedSessionId = generateId();
+    const resolvedSessionId = _sessionId?.trim() || generateId();
 
     if (!this.token || !this.projectId) {
       return {

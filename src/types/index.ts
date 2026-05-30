@@ -230,6 +230,8 @@ export type TrainingPlan = {
   intensity: 'low' | 'medium';
 };
 
+export type CoachAnalysis = PostureAnalysisResult | CombinedAnalysisResult;
+
 // Coach types
 export type CoachMessageRole = 'user' | 'assistant';
 export type CheckInFeedback = 'completed' | 'tooTired';
@@ -244,7 +246,7 @@ export type CoachMessage = {
 };
 
 export type CoachPlanRequest = {
-  analysis: PostureAnalysisResult;
+  analysis: CoachAnalysis;
   profile: UserProfile;
   sessionId: string;
   captureMode?: CaptureMode;
@@ -258,7 +260,7 @@ export type CoachFeedbackRequest = {
   profile: UserProfile;
   sessionId: string;
   plan?: TrainingPlan;
-  analysis?: PostureAnalysisResult;
+  analysis?: CoachAnalysis;
   feedback: CheckInFeedback | string;
   feedbackText?: string;
   previousMessages: CoachMessage[];

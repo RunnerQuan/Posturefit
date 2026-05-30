@@ -16,7 +16,7 @@ import { createCoachClient } from './services/coach';
 import { createSession, loadAppState, saveAppState, updateSession } from './services/storage/sessionStorage';
 import { generateId } from './lib/ids';
 import { getCurrentISOString } from './lib/time';
-import { getSessionDisplayAnalysis, getSessionSingleAnalysis } from './lib/sessionAnalysis';
+import { getSessionDisplayAnalysis } from './lib/sessionAnalysis';
 import { LandingPage } from './features/landing/LandingPage';
 import logoImage from '../assets/logo.png';
 import type {
@@ -622,9 +622,8 @@ function AppShell() {
       if (!currentSession) {
         return;
       }
-      const analysis = getSessionSingleAnalysis(currentSession);
-      const planSource = getSessionDisplayAnalysis(currentSession);
-      if (!analysis || !planSource) {
+      const displayAnalysis = getSessionDisplayAnalysis(currentSession);
+      if (!displayAnalysis) {
         return;
       }
 
@@ -652,7 +651,7 @@ function AppShell() {
 
       try {
         const request = {
-          analysis,
+          analysis: displayAnalysis,
           profile: fixedProfile,
           sessionId: currentSession.id,
           captureMode: currentSession.captureMode,
@@ -673,7 +672,7 @@ function AppShell() {
             updateAssistantDraft(streamedContent);
           })
           : await coachClient.generatePlanMessage(request);
-        const plan = extractTrainingPlanFromMessage(coachMessage.content, currentSession.id, planSource.primaryIssue);
+        const plan = extractTrainingPlanFromMessage(coachMessage.content, currentSession.id, displayAnalysis.primaryIssue);
         const currentExerciseNames = plan?.exercises.map(exercise => exercise.name) ?? [];
         const generatedExerciseNames = uniqueNames([...(currentSession.generatedExerciseNames ?? []), ...currentExerciseNames]);
         if (coachMessage.fallbackReason) {
@@ -702,9 +701,8 @@ function AppShell() {
       if (!currentSession?.profile) {
         return;
       }
-      const analysis = getSessionSingleAnalysis(currentSession);
-      const planSource = getSessionDisplayAnalysis(currentSession);
-      if (!analysis || !planSource) {
+      const displayAnalysis = getSessionDisplayAnalysis(currentSession);
+      if (!displayAnalysis) {
         return;
       }
 
@@ -733,7 +731,7 @@ function AppShell() {
 
       try {
         const request = {
-          analysis,
+          analysis: displayAnalysis,
           profile: currentSession.profile,
           sessionId: currentSession.id,
           captureMode: currentSession.captureMode,
@@ -754,7 +752,7 @@ function AppShell() {
             updateAssistantDraft(streamedContent);
           })
           : await coachClient.generatePlanMessage(request);
-        const plan = extractTrainingPlanFromMessage(coachMessage.content, currentSession.id, planSource.primaryIssue);
+        const plan = extractTrainingPlanFromMessage(coachMessage.content, currentSession.id, displayAnalysis.primaryIssue);
         const nextExerciseNames = plan?.exercises.map(exercise => exercise.name) ?? currentExerciseNames;
         const generatedExerciseNames = uniqueNames([...(currentSession.generatedExerciseNames ?? []), ...nextExerciseNames]);
         persistSession(updateSession(sessionWithDraft, {
@@ -809,7 +807,7 @@ function AppShell() {
           profile: currentSession.profile,
           plan: currentSession.plan,
           sessionId: currentSession.id,
-          analysis: getSessionSingleAnalysis(currentSession) ?? undefined,
+          analysis: getSessionDisplayAnalysis(currentSession) ?? undefined,
           feedback,
           feedbackText,
           previousMessages: messagesWithUser,

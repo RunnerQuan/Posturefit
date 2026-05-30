@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { CozeCoachClient, parseCozeStream } from './cozeCoachClient';
 import { ResilientCoachClient } from './resilientCoachClient';
 import { mockCoachClient } from './mockCoachClient';
-import type { CoachFeedbackRequest, CoachPlanRequest, PostureAnalysisResult, TrainingPlan, UserProfile } from '../../types';
+import type {
+  CoachFeedbackRequest,
+  CoachPlanRequest,
+  CombinedAnalysisResult,
+  PostureAnalysisResult,
+  TrainingPlan,
+  UserProfile,
+} from '../../types';
 
 const analysis: PostureAnalysisResult = {
   keypoints: [],
@@ -86,6 +93,55 @@ const request: CoachPlanRequest = {
   generatedExerciseNames: [],
 };
 
+const combinedAnalysis: CombinedAnalysisResult = {
+  allIssues: [
+    {
+      type: 'shoulderImbalance',
+      severity: 'moderate',
+      angle: 6.8,
+      threshold: 3,
+      label: '高低肩中度异常',
+      view: 'front',
+    },
+    {
+      type: 'forwardHead',
+      severity: 'mild',
+      angle: 9,
+      threshold: 6,
+      label: '头前伸轻度异常',
+      view: 'side',
+    },
+  ],
+  issuesByView: {
+    front: [
+      {
+        type: 'shoulderImbalance',
+        severity: 'moderate',
+        angle: 6.8,
+        threshold: 3,
+        label: '高低肩中度异常',
+        view: 'front',
+      },
+    ],
+    side: [
+      {
+        type: 'forwardHead',
+        severity: 'mild',
+        angle: 9,
+        threshold: 6,
+        label: '头前伸轻度异常',
+        view: 'side',
+      },
+    ],
+  },
+  primaryIssue: 'shoulderImbalance',
+  score: 81.2,
+  frontViewScore: { view: 'front', items: [], normalizedScore: 78.4 },
+  sideViewScore: { view: 'side', items: [], normalizedScore: 84 },
+  allScores: [],
+  analyzedAt: '2026-05-24T00:00:00.000Z',
+};
+
 describe('CozeCoachClient', () => {
   it('parses streamed answer chunks', () => {
     expect(parseCozeStream([
@@ -130,8 +186,7 @@ describe('CozeCoachClient', () => {
     expect(prompt.currentExerciseNames).toEqual([]);
     expect(prompt.completedExerciseNames).toEqual([]);
     expect(prompt.generatedExerciseNames).toEqual([]);
-    expect(body.session_id).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
-    expect(body.session_id).not.toBe('session-1');
+    expect(body.session_id).toBe('session-1');
     expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({
       Authorization: 'Bearer header.payload.signature',
     });
@@ -177,8 +232,7 @@ describe('CozeCoachClient', () => {
     expect(prompt.completedExerciseNames).toEqual(['墙壁天使']);
     expect(prompt.generatedExerciseNames).toEqual(['肩胛骨后缩', '胸椎伸展', '墙壁天使']);
     expect(prompt.previousMessages).toHaveLength(2);
-    expect(body.session_id).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
-    expect(body.session_id).not.toBe('session-1');
+    expect(body.session_id).toBe('session-1');
   });
 
   it('posts proxy payload without frontend token when using same-origin api route', async () => {
@@ -204,8 +258,30 @@ describe('CozeCoachClient', () => {
         primaryIssue: 'anteriorTilt',
       },
     });
-    expect(body.sessionId).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
-    expect(body.sessionId).not.toBe('session-1');
+    expect(body.sessionId).toBe('session-1');
+  });
+
+  it('uses combined dual-view analysis as the prompt source when provided', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('event: message\ndata: {"type":"message_start","content":{"answer":null,"error":null},"finish":true}\ndata: {"type":"answer","content":{"answer":"综合分析已发送","error":null},"finish":false}\ndata: {"type":"answer","content":{"answer":"","error":null},"finish":true}\ndata: {"type":"message_end","content":{"answer":null,"error":null},"finish":true}\n\n', { status: 200 })
+    );
+    const client = new CozeCoachClient({
+      endpoint: '/api/coze/stream_run',
+      fetcher,
+    });
+
+    await client.generatePlanMessage({
+      ...request,
+      analysis: combinedAnalysis,
+    });
+
+    const body = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
+    expect(body.payload.score).toBe(81.2);
+    expect(body.payload.primaryIssue).toBe('shoulderImbalance');
+    expect(body.payload.issues).toEqual([
+      { type: 'shoulderImbalance', severity: 'moderate', angle: 6.8, category: '正面' },
+      { type: 'forwardHead', severity: 'mild', angle: 9, category: '侧面' },
+    ]);
   });
 
   it('streams check-in feedback chunks', async () => {
