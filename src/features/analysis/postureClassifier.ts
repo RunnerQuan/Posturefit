@@ -93,8 +93,8 @@ export interface PostureThresholds {
 // 技术文档建议的阈值
 export const DEFAULT_THRESHOLDS: PostureThresholds = {
   // 头前伸：CVA 角度阈值（越大越好）
-  // normal: CVA >= 50°, mild: CVA >= 45°, moderate: CVA > 40°
-  forwardHead: { normal: 50, mild: 45, moderate: 40 },
+  // normal: CVA >= 48°, mild: CVA >= 45°, moderate: CVA > 40°
+  forwardHead: { normal: 48, mild: 45, moderate: 40 },
   // 圆肩
   roundedShoulder: { normal: 20, mild: 25, moderate: 30 },
   // 高低肩：技术文档 6.4 节建议 <2° 正常, 2-5° 轻度, >5° 明显风险
@@ -134,7 +134,7 @@ function classifyAngleBasedSeverity(
 
 function classifyForwardHeadSeverity(angle: number, thresholds: PostureThresholds): PostureSeverity {
   // angle 是实际 CVA 角度（越大越好），阈值表示边界值
-  // normal: CVA >= 50, mild: CVA >= 45 && < 50, moderate: CVA > 40 && < 45, severe: CVA <= 40
+  // normal: CVA >= 48, mild: CVA >= 45 && < 48, moderate: CVA >= 40 && < 45, severe: CVA < 40
   if (angle >= thresholds.forwardHead.normal) {
     return 'normal';
   }
@@ -540,16 +540,20 @@ function calculateThresholdAwareGaussianScore(type: PostureIssueType, angle: num
   }
 
   if (distance <= normalBoundaryDistance) {
+    const fullScoreBoundaryDistance = normalBoundaryDistance / 2;
+    if (distance <= fullScoreBoundaryDistance) {
+      return { deviation: distance, score: 100 };
+    }
     return {
       deviation: distance,
-      score: gaussianScoreBetweenAnchors(distance, 0, normalBoundaryDistance, 100, 75),
+      score: gaussianScoreBetweenAnchors(distance, fullScoreBoundaryDistance, normalBoundaryDistance, 100, 90),
     };
   }
 
   if (distance <= mildBoundaryDistance) {
     return {
       deviation: distance,
-      score: gaussianScoreBetweenAnchors(distance, normalBoundaryDistance, mildBoundaryDistance, 75, 50),
+      score: gaussianScoreBetweenAnchors(distance, normalBoundaryDistance, mildBoundaryDistance, 90, 50),
     };
   }
 

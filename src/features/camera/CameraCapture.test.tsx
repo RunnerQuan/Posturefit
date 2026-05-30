@@ -46,7 +46,7 @@ describe('CameraCapture', () => {
     expect(screen.getByText('拍摄模式指引')).toBeInTheDocument();
     expect(screen.getByText(/当前：正面照/)).toBeInTheDocument();
     expect(screen.getByText(/正面：头部、双肩、双髋、双膝、双踝/)).toBeInTheDocument();
-    expect(screen.getByText(/侧面：同侧肩、髋、膝、踝/)).toBeInTheDocument();
+    expect(screen.getByText(/侧面：同侧耳朵、肩、髋、膝、踝/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '半身' }));
     expect(onModeChange).toHaveBeenCalledWith('halfBody');
@@ -68,7 +68,7 @@ describe('CameraCapture', () => {
     expect(screen.getByText(/不用于膝内扣或膝超伸/)).toBeInTheDocument();
   });
 
-  it('places guidance below the preview area and before capture actions', () => {
+  it('places guidance above the preview area and before capture actions', () => {
     render(
       <CameraCapture
         onCapture={vi.fn()}
@@ -86,9 +86,9 @@ describe('CameraCapture', () => {
     const cameraButtons = screen.getAllByRole('button', { name: '开启摄像头' });
     const primaryAction = cameraButtons[cameraButtons.length - 1];
 
-    expect(preview.compareDocumentPosition(guide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(guide.compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(primaryAction).toBeDefined();
-    expect(guide.compareDocumentPosition(primaryAction as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(preview.compareDocumentPosition(primaryAction as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('keeps a view status row for single-view layouts so the preview does not jump upward', () => {
@@ -136,7 +136,7 @@ describe('CameraCapture', () => {
     );
 
     expect(screen.getByText(/当前：侧面照/)).toBeInTheDocument();
-    expect(screen.getByText(/侧面：同侧肩、髋、膝、踝/)).toBeInTheDocument();
+    expect(screen.getByText(/侧面：同侧耳朵、肩、髋、膝、踝/)).toBeInTheDocument();
     expect(screen.getByText(/膝超伸需要膝盖和脚踝清楚可见/)).toBeInTheDocument();
 
     rerender(
@@ -154,6 +154,6 @@ describe('CameraCapture', () => {
 
     expect(screen.getByText(/下一张：侧面照/)).toBeInTheDocument();
     expect(screen.getByText(/正面：头部、双肩、双髋、双膝、双踝/)).toBeInTheDocument();
-    expect(screen.getByText(/侧面：同侧肩、髋、膝、踝/)).toBeInTheDocument();
+    expect(screen.getByText(/侧面：同侧耳朵、肩、髋、膝、踝/)).toBeInTheDocument();
   });
 });

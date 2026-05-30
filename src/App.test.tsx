@@ -242,6 +242,73 @@ describe('App frontend B flow', () => {
     });
   });
 
+  it('keeps the second dual-view upload as the side photo instead of replacing the front photo', async () => {
+    render(<App />);
+
+    enterCaptureIfNeeded();
+    fireEvent.click(screen.getByRole('button', { name: '上传正面样例' }));
+
+    await waitFor(() => {
+      const parsed = JSON.parse(localStorage.getItem('posturefit.appState.v1') ?? '{}');
+      const session = parsed.sessions.find((item: { id: string }) => item.id === parsed.currentSessionId);
+      expect(session.photos.map((photo: { view: string }) => photo.view)).toEqual(['front']);
+      expect(session.photos[0].imageUrl).toContain('front');
+      expect(session.step).toBe('capture');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
+
+    await waitFor(() => {
+      const parsed = JSON.parse(localStorage.getItem('posturefit.appState.v1') ?? '{}');
+      const session = parsed.sessions.find((item: { id: string }) => item.id === parsed.currentSessionId);
+      expect(session.photos.map((photo: { view: string }) => photo.view).sort()).toEqual(['front', 'side']);
+      expect(session.photos.find((photo: { view: string }) => photo.view === 'front')?.imageUrl).toContain('front');
+      expect(session.photos.find((photo: { view: string }) => photo.view === 'side')?.imageUrl).toContain('side');
+    });
+  });
+
+  it('restores dual-view capture progress from a saved front photo before uploading the side photo', async () => {
+    const now = new Date().toISOString();
+    localStorage.setItem('posturefit.appState.v1', JSON.stringify({
+      currentSessionId: 'draft-session',
+      schemaVersion: 2,
+      sessions: [
+        {
+          id: 'draft-session',
+          createdAt: now,
+          updatedAt: now,
+          step: 'capture',
+          sourceType: 'upload',
+          captureMode: 'fullBody',
+          viewSelection: 'dual',
+          photos: [
+            {
+              id: 'front-photo',
+              view: 'front',
+              imageUrl: 'data:image/front-existing',
+              analysisStatus: 'pending',
+              capturedAt: now,
+            },
+          ],
+          chatMessages: [],
+        },
+      ],
+    }));
+    window.history.pushState(null, '', '/capture');
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '上传侧面样例' }));
+
+    await waitFor(() => {
+      const parsed = JSON.parse(localStorage.getItem('posturefit.appState.v1') ?? '{}');
+      const session = parsed.sessions.find((item: { id: string }) => item.id === parsed.currentSessionId);
+      expect(session.photos.map((photo: { view: string }) => photo.view).sort()).toEqual(['front', 'side']);
+      expect(session.photos.find((photo: { view: string }) => photo.view === 'front')?.imageUrl).toBe('data:image/front-existing');
+      expect(session.photos.find((photo: { view: string }) => photo.view === 'side')?.imageUrl).toContain('side');
+    });
+  });
+
   it('stops retrying and shows an analysis-page error when pose detection fails', async () => {
     const detectPoseFromImage = vi.fn<UsePoseDetectionResult['detectPoseFromImage']>().mockRejectedValue(new Error('检测到的关键点不足，请确保图片中包含清晰的人体'));
     mockUsePoseDetection.mockReturnValue({
@@ -305,6 +372,33 @@ describe('App frontend B flow', () => {
     expect(stored).not.toBeNull();
     const session = JSON.parse(stored ?? '{}').sessions[0];
     expect(session.photos[0].analysisError.missingKeypoints).toEqual(['左踝', '右踝']);
+  });
+
+  it('asks the user to retake when shoulder keypoints required for shoulder imbalance are missing', async () => {
+    const poseWithoutShoulders = pose.map(point =>
+      point.name === 'left_shoulder' || point.name === 'right_shoulder'
+        ? { ...point, score: 0.1 }
+        : point
+    );
+    mockUsePoseDetection.mockReturnValue({
+      isModelLoading: false,
+      isDetecting: false,
+      error: null,
+      detectPoseFromImage: vi.fn<UsePoseDetectionResult['detectPoseFromImage']>().mockResolvedValue(poseWithoutShoulders),
+      detectPoseFromElement: vi.fn(),
+      modelType: 'BlazePose',
+      setModelType: vi.fn(),
+    });
+
+    render(<App />);
+
+    enterCaptureIfNeeded();
+    fireEvent.click(screen.getByRole('button', { name: '只拍正面' }));
+    fireEvent.click(screen.getByRole('button', { name: '上传正面样例' }));
+
+    expect(await screen.findByText('无法完成体态分析')).toBeInTheDocument();
+    expect(screen.getByText(/缺失关键点：左肩、右肩/)).toBeInTheDocument();
+    expect(screen.queryByText('高低肩正常')).not.toBeInTheDocument();
   });
 
   it('shows missing side-view leg keypoints instead of a knee hyperextension undetected result', async () => {

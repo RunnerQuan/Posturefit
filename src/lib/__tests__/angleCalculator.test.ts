@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { analyzePose } from '../../features/analysis/postureAnalyzer';
+import { analyzePose, combineAnalyses } from '../../features/analysis/postureAnalyzer';
 import {
   calculateAllPostureAngles,
   calculateForwardHeadAngle,
   calculateHeadOffsetAngle,
   calculateKneeHyperextensionAngle,
   calculateKneeValgusAngle,
+  calculateShoulderImbalanceAngle,
 } from '../../features/analysis/angleCalculator';
 import type { BlazePoseLandmark, PoseKeypoint33 } from '../../types';
 
@@ -140,6 +141,73 @@ describe('calculateAllPostureAngles', () => {
     expect(calculateForwardHeadAngle(forward)).toBeLessThan(50);
   });
 
+  it('detects obvious forward head when raw CVA is still above the normal boundary', () => {
+    const forward = uprightSideViewPose().map(point => {
+      if (point.name.startsWith('right_')) return { ...point, score: 0 };
+      if (point.name === 'nose') return keypoint33('nose', 160, 40);
+      if (point.name === 'left_ear') return keypoint33('left_ear', 145, 45);
+      return point;
+    });
+
+    const rawCva = Math.atan2(55, 45) * (180 / Math.PI);
+
+    expect(rawCva).toBeGreaterThan(50);
+    expect(calculateForwardHeadAngle(forward)).toBeLessThan(40);
+  });
+
+  it('detects forward head for left-facing side-view poses', () => {
+    const forward = uprightSideViewPose().map(point => {
+      if (point.name.startsWith('right_')) return { ...point, score: 0 };
+      if (point.name === 'nose') return missingKeypoint33('nose');
+      if (point.name === 'left_ear') return keypoint33('left_ear', 55, 45);
+      return point;
+    });
+
+    expect(calculateForwardHeadAngle(forward)).toBeLessThan(40);
+  });
+
+  it('falls back to ear-shoulder height for close-up side photos without hip points', () => {
+    const closeUpForward = uprightSideViewPose().map(point => {
+      if (point.name.startsWith('right_')) return { ...point, score: 0 };
+      if (point.name === 'nose') return keypoint33('nose', 160, 40);
+      if (point.name === 'left_hip') return missingKeypoint33('left_hip');
+      if (point.name === 'left_ear') return keypoint33('left_ear', 145, 45);
+      return point;
+    });
+
+    expect(calculateForwardHeadAngle(closeUpForward)).toBeLessThan(40);
+  });
+
+  it('returns null for forward head when ear or shoulder is missing', () => {
+    const missingEar = uprightSideViewPose().map(point =>
+      point.name.endsWith('_ear') ? { ...point, score: 0 } : point
+    );
+    const missingShoulder = uprightSideViewPose().map(point =>
+      point.name.endsWith('_shoulder') ? { ...point, score: 0 } : point
+    );
+
+    expect(calculateForwardHeadAngle(missingEar)).toBeNull();
+    expect(calculateForwardHeadAngle(missingShoulder)).toBeNull();
+  });
+
+  it('reports side-view forward head while keeping front-view forward head out of official issues', () => {
+    const sideForward = uprightSideViewPose().map(point => {
+      if (point.name.startsWith('right_')) return { ...point, score: 0 };
+      if (point.name === 'nose') return keypoint33('nose', 160, 40);
+      if (point.name === 'left_ear') return keypoint33('left_ear', 145, 45);
+      return point;
+    });
+
+    const sideAnalysis = analyzePose(sideForward, { view: 'side' });
+    const frontAnalysis = analyzePose(uprightFrontViewPose(), { view: 'front' });
+    const combined = combineAnalyses(frontAnalysis, sideAnalysis);
+
+    expect(sideAnalysis.issues.find(issue => issue.type === 'forwardHead')?.severity).toBe('severe');
+    expect(sideAnalysis.primaryIssue).toBe('forwardHead');
+    expect(frontAnalysis.issues.some(issue => issue.type === 'forwardHead')).toBe(false);
+    expect(combined.allIssues.some(issue => issue.type === 'forwardHead' && issue.severity === 'severe')).toBe(true);
+  });
+
   it('returns null instead of a normal value when required front-view keypoints are missing', () => {
     const pose = uprightFrontViewPose().map(point =>
       point.name === 'left_shoulder' ? missingKeypoint33('left_shoulder') : point
@@ -149,6 +217,39 @@ describe('calculateAllPostureAngles', () => {
 
     expect(metrics.shoulderImbalanceAngle).toBeNull();
     expect(metrics.headOffsetAngle).toBeNull();
+  });
+
+  it('returns null for every official issue when its required keypoints are missing', () => {
+    const front = uprightFrontViewPose();
+    const side = uprightSideViewPose();
+
+    expect(calculateShoulderImbalanceAngle(front.map(point =>
+      point.name === 'left_shoulder' ? missingKeypoint33('left_shoulder') : point
+    ))).toBeNull();
+    expect(calculateAllPostureAngles(front.map(point =>
+      point.name === 'left_hip' ? missingKeypoint33('left_hip') : point
+    )).pelvicTiltAngle).toBeNull();
+    expect(calculateKneeValgusAngle(front.map(point =>
+      point.name.endsWith('_knee') ? { ...point, score: 0 } : point
+    ))).toBeNull();
+    expect(calculateHeadOffsetAngle(front.map(point =>
+      point.name === 'right_hip' ? missingKeypoint33('right_hip') : point
+    ))).toBeNull();
+    expect(calculateAllPostureAngles(front.map(point =>
+      point.name === 'right_ankle' ? missingKeypoint33('right_ankle') : point
+    )).centerOfGravityShiftAngle).toBeNull();
+    expect(calculateForwardHeadAngle(side.map(point =>
+      point.name.endsWith('_ear') ? { ...point, score: 0 } : point
+    ))).toBeNull();
+    expect(calculateAllPostureAngles(side.map(point =>
+      point.name.endsWith('_hip') ? { ...point, score: 0 } : point
+    )).roundedShoulderAngle).toBeNull();
+    expect(calculateAllPostureAngles(side.map(point =>
+      point.name.endsWith('_shoulder') ? { ...point, score: 0 } : point
+    )).hunchbackAngle).toBeNull();
+    expect(calculateKneeHyperextensionAngle(side.map(point =>
+      point.name.endsWith('_ankle') ? { ...point, score: 0 } : point
+    ))).toBeNull();
   });
 
   it('uses face-center fallback for head offset when the nose is missing', () => {

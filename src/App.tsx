@@ -201,6 +201,21 @@ function getNextView(viewSelection: ViewSelection, currentCaptureView: PoseView 
   return viewSelection;
 }
 
+function getDualCaptureProgressFromPhotos(session: PostureSession | null): PoseView | null {
+  if (!session || session.viewSelection !== 'dual') {
+    return null;
+  }
+
+  const photos = filterPhotosForViewSelection(session.photos, 'dual');
+  const hasSidePhoto = photos.some(photo => photo.view === 'side');
+  if (hasSidePhoto) {
+    return 'side';
+  }
+
+  const hasFrontPhoto = photos.some(photo => photo.view === 'front');
+  return hasFrontPhoto ? 'front' : null;
+}
+
 function getUserFeedbackMessage(feedback: CheckInFeedback, feedbackText?: string): CoachMessage {
   return {
     id: generateId(),
@@ -353,6 +368,9 @@ function AppShell() {
   const [mobileChatPanel, setMobileChatPanel] = useState<MobileChatPanelType>(null);
   const isMobileViewport = useIsMobileViewport();
   const { detectPoseFromImage, isModelLoading } = usePoseDetection();
+  const effectiveCurrentCaptureView = viewSelection === 'dual'
+    ? currentCaptureView ?? getDualCaptureProgressFromPhotos(currentSession)
+    : null;
 
   useEffect(() => {
     saveAppState(appState);
@@ -465,18 +483,18 @@ function AppShell() {
 
   const handleCapture = useCallback(
     (dataUrl: string, explicitView?: PoseView) => {
-      const view = explicitView ?? getNextView(viewSelection, currentCaptureView);
+      const view = explicitView ?? getNextView(viewSelection, effectiveCurrentCaptureView);
       upsertCapturedPhoto(dataUrl, view, 'camera');
     },
-    [currentCaptureView, upsertCapturedPhoto, viewSelection]
+    [effectiveCurrentCaptureView, upsertCapturedPhoto, viewSelection]
   );
 
   const handleUpload = useCallback(
     (dataUrl: string, explicitView?: PoseView) => {
-      const view = explicitView ?? getNextView(viewSelection, currentCaptureView);
+      const view = explicitView ?? getNextView(viewSelection, effectiveCurrentCaptureView);
       upsertCapturedPhoto(dataUrl, view, 'upload');
     },
-    [currentCaptureView, upsertCapturedPhoto, viewSelection]
+    [effectiveCurrentCaptureView, upsertCapturedPhoto, viewSelection]
   );
 
   const handleCaptureModeChange = useCallback(
@@ -510,7 +528,7 @@ function AppShell() {
   );
 
   const handleResetCapture = useCallback(() => {
-    if (!currentSession || viewSelection !== 'dual' || currentCaptureView !== 'front') {
+    if (!currentSession || viewSelection !== 'dual' || effectiveCurrentCaptureView !== 'front') {
       return;
     }
     const nextSession = updateSession(currentSession, {
@@ -520,7 +538,7 @@ function AppShell() {
     });
     setCurrentCaptureView(null);
     persistSession(nextSession);
-  }, [currentCaptureView, currentSession, persistSession, viewSelection]);
+  }, [effectiveCurrentCaptureView, currentSession, persistSession, viewSelection]);
 
   const performAnalysis = useCallback(
     async (session: PostureSession) => {
@@ -1025,7 +1043,7 @@ function AppShell() {
                   onUploadImage={handleUpload}
                   viewSelection={viewSelection}
                   onViewSelectionChange={setViewSelection}
-                  currentCaptureView={viewSelection === 'dual' ? currentCaptureView : null}
+                  currentCaptureView={effectiveCurrentCaptureView}
                   onResetCapture={handleResetCapture}
                   showViewSelection
                 />

@@ -14,13 +14,18 @@ import { ISSUE_LABELS } from '../../data/exercises';
 describe('classifyPostureIssue', () => {
   describe('forwardHead', () => {
     it('should classify normal forward head angle', () => {
-      // CVA 角度越大越好（正常 >= 50°）
+      // CVA 角度越大越好（正常 >= 48°）
       const result = classifyPostureIssue('forwardHead', 55, DEFAULT_THRESHOLDS);
       expect(result.severity).toBe('normal');
     });
 
+    it('should classify 48 degrees and 49.3 degrees as normal forward head angles', () => {
+      expect(classifyPostureIssue('forwardHead', 49.3, DEFAULT_THRESHOLDS).severity).toBe('normal');
+      expect(classifyPostureIssue('forwardHead', 48, DEFAULT_THRESHOLDS).severity).toBe('normal');
+    });
+
     it('should classify mild forward head angle', () => {
-      const result = classifyPostureIssue('forwardHead', 47, DEFAULT_THRESHOLDS);
+      const result = classifyPostureIssue('forwardHead', 47.9, DEFAULT_THRESHOLDS);
       expect(result.severity).toBe('mild');
     });
 
@@ -164,11 +169,19 @@ describe('calculateIssueScore', () => {
     expect(calculateIssueScore('forwardHead', 40).view).toBe('side');
   });
 
-  it('scores the ideal center as 100 and the normal boundary near 75', () => {
+  it('keeps the center-to-normal midpoint at 100 and scores the normal boundary near 90', () => {
     const centerScore = calculateIssueScore({
       type: 'roundedShoulder',
       severity: 'normal',
       angle: 0,
+      threshold: 25,
+      label: '圆肩倾向正常',
+      view: 'side',
+    });
+    const midpointScore = calculateIssueScore({
+      type: 'roundedShoulder',
+      severity: 'normal',
+      angle: 10,
       threshold: 25,
       label: '圆肩倾向正常',
       view: 'side',
@@ -183,10 +196,11 @@ describe('calculateIssueScore', () => {
     });
 
     expect(centerScore.gaussianScore).toBe(100);
-    expect(boundaryScore.gaussianScore).toBeCloseTo(75, 5);
+    expect(midpointScore.gaussianScore).toBe(100);
+    expect(boundaryScore.gaussianScore).toBeCloseTo(90, 5);
   });
 
-  it('scores forward-head boundaries at 50 and 20 after the normal CVA boundary', () => {
+  it('scores forward-head center and normal midpoint as 100, normal boundary near 90, and moderate boundary near 20', () => {
     expect(calculateIssueScore({
       type: 'forwardHead',
       severity: 'normal',
@@ -195,6 +209,22 @@ describe('calculateIssueScore', () => {
       label: '头前伸正常',
       view: 'side',
     }).gaussianScore).toBe(100);
+    expect(calculateIssueScore({
+      type: 'forwardHead',
+      severity: 'normal',
+      angle: 49,
+      threshold: 45,
+      label: '头前伸正常',
+      view: 'side',
+    }).gaussianScore).toBe(100);
+    expect(calculateIssueScore({
+      type: 'forwardHead',
+      severity: 'normal',
+      angle: 48,
+      threshold: 45,
+      label: '头前伸正常',
+      view: 'side',
+    }).gaussianScore).toBeCloseTo(90, 5);
     const mildScore = calculateIssueScore({
       type: 'forwardHead',
       severity: 'mild',
@@ -214,7 +244,7 @@ describe('calculateIssueScore', () => {
     }).gaussianScore).toBeCloseTo(20, 5);
   });
 
-  it('scores knee hyperextension center as 100, normal boundary near 75, and mild boundary near 50', () => {
+  it('scores knee hyperextension center and normal midpoint as 100, normal boundary near 90, and mild boundary near 50', () => {
     expect(calculateIssueScore({
       type: 'kneeHyperextension',
       severity: 'normal',
@@ -226,11 +256,19 @@ describe('calculateIssueScore', () => {
     expect(calculateIssueScore({
       type: 'kneeHyperextension',
       severity: 'normal',
+      angle: 181,
+      threshold: 165,
+      label: '膝超伸正常',
+      view: 'side',
+    }).gaussianScore).toBe(100);
+    expect(calculateIssueScore({
+      type: 'kneeHyperextension',
+      severity: 'normal',
       angle: 185,
       threshold: 165,
       label: '膝超伸正常',
       view: 'side',
-    }).gaussianScore).toBeCloseTo(75, 5);
+    }).gaussianScore).toBeCloseTo(90, 5);
     const abnormalScore = calculateIssueScore({
       type: 'kneeHyperextension',
       severity: 'mild',
@@ -312,7 +350,7 @@ describe('calculatePostureScore', () => {
     expect(score).toBe(100);
   });
 
-  it('keeps normal-boundary issues near 75 instead of full marks', () => {
+  it('keeps center-to-normal-midpoint issues at 100 but normal-boundary issues near 90', () => {
     const issues: PostureIssue[] = [
       { type: 'roundedShoulder', severity: 'normal', angle: 20, threshold: 20, label: '圆肩正常', view: 'side' },
       { type: 'shoulderImbalance', severity: 'normal', angle: 2, threshold: 2, label: '高低肩正常', view: 'front' },
@@ -320,10 +358,10 @@ describe('calculatePostureScore', () => {
 
     const score = calculatePostureScore(issues);
 
-    expect(score).toBeCloseTo(75, 5);
+    expect(score).toBeCloseTo(90, 5);
   });
 
-  it('should deduct points for mild issues', () => {
+  it('should deduct gently for a mild issue when the other detected issue is normal', () => {
     const issues: PostureIssue[] = [
       { type: 'forwardHead', severity: 'mild', angle: 47, threshold: 45, label: '头前伸轻度异常', view: 'front' },
       { type: 'roundedShoulder', severity: 'normal', angle: 15, threshold: 20, label: '圆肩正常', view: 'side' },
@@ -331,8 +369,8 @@ describe('calculatePostureScore', () => {
 
     const score = calculatePostureScore(issues);
 
-    expect(score).toBeGreaterThan(70);
-    expect(score).toBeLessThan(80);
+    expect(score).toBeGreaterThan(85);
+    expect(score).toBeLessThan(95);
   });
 
   it('should deduct more points for severe issues', () => {

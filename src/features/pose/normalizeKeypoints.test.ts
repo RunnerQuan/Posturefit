@@ -66,7 +66,7 @@ describe('validateKeypointsForMode', () => {
     expect(result.isValid).toBe(true);
   });
 
-  it('allows closeUp mode without hip and leg keypoints', () => {
+  it('rejects closeUp front-view photos without hip keypoints because head offset cannot be analyzed', () => {
     const result = validate('closeUp', [
       'left_hip',
       'right_hip',
@@ -76,7 +76,8 @@ describe('validateKeypointsForMode', () => {
       'right_ankle',
     ]);
 
-    expect(result.isValid).toBe(true);
+    expect(result.isValid).toBe(false);
+    expect(result.missingKeypoints).toEqual(['left_hip', 'right_hip']);
   });
 
   it('allows sitting mode without ankle keypoints', () => {
@@ -105,6 +106,17 @@ describe('validateKeypointsForMode', () => {
     expect(result.isValid).toBe(false);
     expect(result.message).toContain('膝盖和脚踝');
     expect(result.missingKeypoints).toEqual(['left_knee', 'left_ankle']);
+  });
+
+  it('rejects side-view full-body photos when ears needed for forward-head analysis are missing', () => {
+    const result = validateKeypointsForMode(
+      pose33(['right_shoulder', 'right_hip', 'right_knee', 'right_ankle', 'left_ear']),
+      'fullBody',
+      'side'
+    );
+
+    expect(result.isValid).toBe(false);
+    expect(result.missingKeypoints).toEqual(['left_ear']);
   });
 
   it('rejects clearly unreliable front-view full-body poses before analysis', () => {
