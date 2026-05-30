@@ -29,6 +29,22 @@ describe('resolveCaptureView', () => {
 });
 
 describe('CameraCapture', () => {
+  it('does not offer close-up as a selectable capture mode', () => {
+    render(
+      <CameraCapture
+        onCapture={vi.fn()}
+        selectedMode="fullBody"
+        onModeChange={vi.fn()}
+        onUploadImage={vi.fn()}
+        viewSelection="front"
+        onViewSelectionChange={vi.fn()}
+        showViewSelection
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: '特写' })).not.toBeInTheDocument();
+  });
+
   it('shows capture-mode guidance on the capture page and updates it when mode changes', () => {
     const onModeChange = vi.fn();
     const { rerender } = render(
