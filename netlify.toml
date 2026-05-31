@@ -3,6 +3,10 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[functions]
+  [functions."*"]
+    timeout = 60
+
 # 将 /api/coze/* 请求代理到 Netlify Function
 [[redirects]]
   from = "/api/coze/*"
