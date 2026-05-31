@@ -155,6 +155,33 @@ describe('CozeCoachClient', () => {
     ].join('\n'))).toBe('明天继续');
   });
 
+  it('parses Coze workflow tool response result chunks', () => {
+    expect(parseCozeStream([
+      'event: message',
+      'data: {"type":"message_start","content":{"answer":null,"tool_response":null,"error":null},"finish":true}',
+      'event: message',
+      'data: {"type":"tool_request","content":{"answer":null,"tool_response":null,"error":null},"finish":true}',
+      'event: message',
+      'data: {"type":"tool_response","content":{"answer":null,"tool_response":{"code":"0","message":"","result":"今日训练计划已生成"},"error":null},"finish":true}',
+      'event: message',
+      'data: {"type":"message_end","content":{"answer":null,"tool_response":null,"error":null},"finish":true}',
+      '',
+    ].join('\n'))).toBe('今日训练计划已生成');
+  });
+
+  it('does not duplicate content when Coze returns tool result and answer chunks', () => {
+    expect(parseCozeStream([
+      'event: message',
+      'data: {"type":"tool_response","content":{"answer":null,"tool_response":{"code":"0","message":"","result":"今日训练计划已生成"},"error":null},"finish":true}',
+      'event: message',
+      'data: {"type":"answer","content":{"answer":"今日训练","tool_response":null,"error":null},"finish":false}',
+      'data: {"type":"answer","content":{"answer":"计划已生成","tool_response":null,"error":null},"finish":false}',
+      'event: message',
+      'data: {"type":"message_end","content":{"answer":null,"tool_response":null,"error":null},"finish":true}',
+      '',
+    ].join('\n'))).toBe('今日训练计划已生成');
+  });
+
   it('posts Coze prompt payload and returns a coach message', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response('event: message\ndata: {"type":"message_start","content":{"answer":null,"error":null},"finish":true}\ndata: {"type":"answer","content":{"answer":"计划已生成","error":null},"finish":false}\ndata: {"type":"answer","content":{"answer":"","error":null},"finish":true}\ndata: {"type":"message_end","content":{"answer":null,"error":null},"finish":true}\n\n', { status: 200 })
@@ -321,6 +348,33 @@ describe('CozeCoachClient', () => {
 
     expect(deltas).toEqual(['先减', '量一点']);
     expect(message.content).toBe('先减量一点');
+  });
+
+  it('streams answer chunks without prepending duplicate tool result content', async () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode('event: message\n'));
+        controller.enqueue(encoder.encode('data: {"type":"tool_response","content":{"answer":null,"tool_response":{"code":"0","message":"","result":"今日训练计划已生成"},"error":null},"finish":true}\n\n'));
+        controller.enqueue(encoder.encode('data: {"type":"answer","content":{"answer":"今日训练","tool_response":null,"error":null},"finish":false}\n\n'));
+        controller.enqueue(encoder.encode('data: {"type":"answer","content":{"answer":"计划已生成","tool_response":null,"error":null},"finish":false}\n\n'));
+        controller.enqueue(encoder.encode('data: {"type":"message_end","content":{"answer":null,"tool_response":null,"error":null},"finish":true}\n\n'));
+        controller.close();
+      },
+    });
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(stream, { status: 200 }));
+    const client = new CozeCoachClient({
+      endpoint: 'https://example.test/stream_run',
+      projectId: '7643312041570172962',
+      token: 'header.payload.signature',
+      fetcher,
+    });
+    const deltas: string[] = [];
+
+    const message = await client.generatePlanMessageStream!(request, delta => deltas.push(delta));
+
+    expect(deltas).toEqual(['今日训练', '计划已生成']);
+    expect(message.content).toBe('今日训练计划已生成');
   });
 
   it('streams fallback mock when Coze fails before output', async () => {

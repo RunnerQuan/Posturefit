@@ -192,32 +192,50 @@ function getRequestMemory(
  *   event: message
  *   data: {"type":"answer","content":{"answer":"根据"},"finish":false,...}
  *
- * type 有三种：
+ * type 常见值：
  *   - "message_start"：消息开始，content.answer 为 null
  *   - "answer"：正文片段，content.answer 为文本 chunk
+ *   - "tool_response"：工作流工具输出，content.tool_response.result 为完整文本
  *   - "message_end"：消息结束，content.answer 为 null
  */
 type CozeStreamChunk = {
-  type: 'message_start' | 'answer' | 'message_end';
+  type: string;
   content: {
     answer: string | null;
+    tool_response?: {
+      code?: string;
+      message?: string;
+      result?: unknown;
+    } | null;
     error: string | null;
   };
   finish: boolean;
 };
 
-function extractCozeAnswer(chunk: CozeStreamChunk): string {
+type CozeParsedChunk = {
+  answer: string;
+  toolResult: string;
+};
+
+function getCozeChunkText(chunk: CozeStreamChunk): CozeParsedChunk {
   if (chunk.content.error) {
     throw new Error(`Coze 错误: ${chunk.content.error}`);
   }
   if (chunk.type === 'answer' && chunk.content.answer != null) {
-    return chunk.content.answer;
+    return { answer: chunk.content.answer, toolResult: '' };
   }
-  return '';
+  if (chunk.type === 'tool_response' && chunk.content.tool_response?.result != null) {
+    const result = chunk.content.tool_response.result;
+    return {
+      answer: '',
+      toolResult: typeof result === 'string' ? result : JSON.stringify(result),
+    };
+  }
+  return { answer: '', toolResult: '' };
 }
 
 export function parseCozeStream(text: string): string {
-  return text
+  const chunks = text
     .split(/\r?\n/)
     .filter(line => line.startsWith('data:'))
     .map(line => line.replace(/^data:\s*/, '').trim())
@@ -225,25 +243,28 @@ export function parseCozeStream(text: string): string {
     .map(line => {
       try {
         const chunk = JSON.parse(line) as CozeStreamChunk;
-        return extractCozeAnswer(chunk);
+        return getCozeChunkText(chunk);
       } catch (error) {
         if (error instanceof Error && !line.startsWith('{')) {
-          return '';
+          return { answer: '', toolResult: '' };
         }
         throw error;
       }
-    })
-    .join('')
-    .trim();
+    });
+  const answer = chunks.map(chunk => chunk.answer).join('').trim();
+  if (answer) {
+    return answer;
+  }
+  return chunks.map(chunk => chunk.toolResult).join('').trim();
 }
 
-export function parseCozeDataLine(line: string): string {
+function parseCozeDataLine(line: string): CozeParsedChunk {
   const data = line.replace(/^data:\s*/, '').trim();
   if (!data || data === '[DONE]') {
-    return '';
+    return { answer: '', toolResult: '' };
   }
   const chunk = JSON.parse(data) as CozeStreamChunk;
-  return extractCozeAnswer(chunk);
+  return getCozeChunkText(chunk);
 }
 
 export class CozeCoachClient implements CoachClient {
@@ -412,16 +433,20 @@ export class CozeCoachClient implements CoachClient {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let content = '';
+    let answerContent = '';
+    let toolResultContent = '';
 
     const flushLine = (line: string) => {
       if (!line.startsWith('data:')) {
         return;
       }
-      const delta = parseCozeDataLine(line);
-      if (delta) {
-        content += delta;
-        onDelta(delta);
+      const { answer, toolResult } = parseCozeDataLine(line);
+      if (answer) {
+        answerContent += answer;
+        onDelta(answer);
+      }
+      if (toolResult) {
+        toolResultContent += toolResult;
       }
     };
 
@@ -439,7 +464,7 @@ export class CozeCoachClient implements CoachClient {
     buffer += decoder.decode();
     buffer.split(/\r?\n/).forEach(flushLine);
 
-    const trimmedContent = content.trim();
+    const trimmedContent = (answerContent || toolResultContent).trim();
     if (!trimmedContent) {
       throw new Error('Coze 返回内容为空');
     }
