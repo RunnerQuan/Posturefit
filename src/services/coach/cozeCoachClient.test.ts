@@ -350,7 +350,7 @@ describe('CozeCoachClient', () => {
     expect(message.content).toBe('先减量一点');
   });
 
-  it('streams workflow tool result immediately without waiting for duplicate answer chunks', async () => {
+  it('uses workflow tool result and ignores duplicate answer chunks', async () => {
     const stream = new ReadableStream({
       start(controller) {
         const encoder = new TextEncoder();
@@ -375,6 +375,28 @@ describe('CozeCoachClient', () => {
 
     expect(deltas).toEqual(['今日训练计划已生成']);
     expect(message.content).toBe('今日训练计划已生成');
+  });
+
+  it('uses workflow tool result as final content even if answer started first', async () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode('data: {"type":"answer","content":{"answer":"生成中","tool_response":null,"error":null},"finish":false}\n\n'));
+        controller.enqueue(encoder.encode('data: {"type":"tool_response","content":{"answer":null,"tool_response":{"code":"0","message":"","result":"完整训练计划"},"error":null},"finish":true}\n\n'));
+        controller.close();
+      },
+    });
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(stream, { status: 200 }));
+    const client = new CozeCoachClient({
+      endpoint: 'https://example.test/stream_run',
+      projectId: '7643312041570172962',
+      token: 'header.payload.signature',
+      fetcher,
+    });
+
+    const message = await client.generatePlanMessageStream!(request, vi.fn());
+
+    expect(message.content).toBe('完整训练计划');
   });
 
   it('streams fallback mock when Coze fails before output', async () => {

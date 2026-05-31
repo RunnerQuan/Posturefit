@@ -435,21 +435,21 @@ export class CozeCoachClient implements CoachClient {
     let buffer = '';
     let answerContent = '';
     let toolResultContent = '';
-    let shouldStopReading = false;
 
     const flushLine = (line: string) => {
       if (!line.startsWith('data:')) {
         return;
       }
       const { answer, toolResult } = parseCozeDataLine(line);
-      if (answer) {
+      if (answer && !toolResultContent) {
         answerContent += answer;
         onDelta(answer);
       }
-      if (toolResult && !answerContent) {
+      if (toolResult) {
         toolResultContent += toolResult;
-        onDelta(toolResult);
-        shouldStopReading = true;
+        if (!answerContent) {
+          onDelta(toolResult);
+        }
       }
     };
 
@@ -462,18 +462,12 @@ export class CozeCoachClient implements CoachClient {
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() ?? '';
       lines.forEach(flushLine);
-      if (shouldStopReading) {
-        await reader.cancel();
-        break;
-      }
     }
 
-    if (!shouldStopReading) {
-      buffer += decoder.decode();
-      buffer.split(/\r?\n/).forEach(flushLine);
-    }
+    buffer += decoder.decode();
+    buffer.split(/\r?\n/).forEach(flushLine);
 
-    const trimmedContent = (answerContent || toolResultContent).trim();
+    const trimmedContent = (toolResultContent || answerContent).trim();
     if (!trimmedContent) {
       throw new Error('Coze 返回内容为空');
     }

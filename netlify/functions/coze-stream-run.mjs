@@ -1,4 +1,5 @@
 import { stream } from '@netlify/functions';
+import { PassThrough } from 'node:stream';
 
 /**
  * Netlify Function — Coze SSE 代理
@@ -43,6 +44,59 @@ function buildCozeRequestBody(payload, sessionId, projectId) {
     session_id: sessionId,
     project_id: Number(projectId),
   });
+}
+
+function hasToolResult(dataLine) {
+  try {
+    const chunk = JSON.parse(dataLine.replace(/^data:\s*/, '').trim());
+    return chunk?.type === 'tool_response' && chunk?.content?.tool_response?.result;
+  } catch {
+    return false;
+  }
+}
+
+async function forwardUntilFirstCompleteResult(upstreamBody, output) {
+  const reader = upstreamBody.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  const flushLine = line => {
+    if (!line) {
+      output.write('\n');
+      return false;
+    }
+    output.write(`${line}\n`);
+    return line.startsWith('data:') && hasToolResult(line);
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        if (flushLine(line)) {
+          await reader.cancel();
+          output.end('\n');
+          return;
+        }
+      }
+    }
+
+    buffer += decoder.decode();
+    for (const line of buffer.split(/\r?\n/)) {
+      flushLine(line);
+    }
+    output.end();
+  } catch (error) {
+    output.destroy(error);
+  }
 }
 
 export const handler = stream(async event => {
@@ -131,6 +185,9 @@ export const handler = stream(async event => {
     };
   }
 
+  const bodyStream = new PassThrough();
+  void forwardUntilFirstCompleteResult(upstream.body, bodyStream);
+
   return {
     statusCode: 200,
     headers: {
@@ -138,6 +195,6 @@ export const handler = stream(async event => {
       'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*',
     },
-    body: upstream.body,
+    body: bodyStream,
   };
 });
