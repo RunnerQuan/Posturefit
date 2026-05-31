@@ -350,7 +350,7 @@ describe('CozeCoachClient', () => {
     expect(message.content).toBe('先减量一点');
   });
 
-  it('streams answer chunks without prepending duplicate tool result content', async () => {
+  it('streams workflow tool result immediately without waiting for duplicate answer chunks', async () => {
     const stream = new ReadableStream({
       start(controller) {
         const encoder = new TextEncoder();
@@ -373,7 +373,7 @@ describe('CozeCoachClient', () => {
 
     const message = await client.generatePlanMessageStream!(request, delta => deltas.push(delta));
 
-    expect(deltas).toEqual(['今日训练', '计划已生成']);
+    expect(deltas).toEqual(['今日训练计划已生成']);
     expect(message.content).toBe('今日训练计划已生成');
   });
 

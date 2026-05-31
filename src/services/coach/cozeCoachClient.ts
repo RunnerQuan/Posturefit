@@ -435,6 +435,7 @@ export class CozeCoachClient implements CoachClient {
     let buffer = '';
     let answerContent = '';
     let toolResultContent = '';
+    let shouldStopReading = false;
 
     const flushLine = (line: string) => {
       if (!line.startsWith('data:')) {
@@ -445,8 +446,10 @@ export class CozeCoachClient implements CoachClient {
         answerContent += answer;
         onDelta(answer);
       }
-      if (toolResult) {
+      if (toolResult && !answerContent) {
         toolResultContent += toolResult;
+        onDelta(toolResult);
+        shouldStopReading = true;
       }
     };
 
@@ -459,10 +462,16 @@ export class CozeCoachClient implements CoachClient {
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() ?? '';
       lines.forEach(flushLine);
+      if (shouldStopReading) {
+        await reader.cancel();
+        break;
+      }
     }
 
-    buffer += decoder.decode();
-    buffer.split(/\r?\n/).forEach(flushLine);
+    if (!shouldStopReading) {
+      buffer += decoder.decode();
+      buffer.split(/\r?\n/).forEach(flushLine);
+    }
 
     const trimmedContent = (answerContent || toolResultContent).trim();
     if (!trimmedContent) {
