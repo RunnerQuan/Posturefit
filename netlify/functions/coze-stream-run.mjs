@@ -1,25 +1,28 @@
+import { stream } from '@netlify/functions';
+
 /**
  * Netlify Function — Coze SSE 代理
  *
  * 关键点：
  * 1. 前端统一请求 /api/coze/stream_run
  * 2. 生产环境由 Netlify Function 注入 COZE_TOKEN
- * 3. 直接透传上游 ReadableStream，避免先 await text() 导致函数阻塞到超时
+ * 3. 使用 Netlify 官方 streaming wrapper 透传上游 ReadableStream
  */
 
 const DEFAULT_COZE_ENDPOINT = 'https://8f9jzqp2mk.coze.site/stream_run';
 const DEFAULT_COZE_PROJECT_ID = '7643312041570172962';
 
-function json(status, body) {
-  return new Response(JSON.stringify(body), {
-    status,
+function json(statusCode, body) {
+  return {
+    statusCode,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
-  });
+    body: JSON.stringify(body),
+  };
 }
 
 function buildCozeRequestBody(payload, sessionId, projectId) {
@@ -42,20 +45,21 @@ function buildCozeRequestBody(payload, sessionId, projectId) {
   });
 }
 
-export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
+export const handler = stream(async event => {
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         'Access-Control-Max-Age': '86400',
       },
-    });
+      body: '',
+    };
   }
 
-  if (req.method !== 'POST') {
+  if (event.httpMethod !== 'POST') {
     return json(405, { error: 'Method Not Allowed' });
   }
 
@@ -74,7 +78,7 @@ export default async function handler(req) {
 
   let body;
   try {
-    body = await req.json();
+    body = JSON.parse(event.body || '');
   } catch {
     return json(400, { error: '请求体必须是合法 JSON' });
   }
@@ -116,22 +120,24 @@ export default async function handler(req) {
 
   if (!upstream.body) {
     const responseText = await upstream.text();
-    return new Response(responseText, {
-      status: 200,
+    return {
+      statusCode: 200,
       headers: {
         'Content-Type': upstream.headers.get('content-type') || 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache',
         'Access-Control-Allow-Origin': '*',
       },
-    });
+      body: responseText,
+    };
   }
 
-  return new Response(upstream.body, {
-    status: 200,
+  return {
+    statusCode: 200,
     headers: {
       'Content-Type': upstream.headers.get('content-type') || 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*',
     },
-  });
-}
+    body: upstream.body,
+  };
+});
